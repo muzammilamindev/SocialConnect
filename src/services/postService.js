@@ -25,13 +25,26 @@ export const createPost = async (userId, userName, userAvatar, text, imageUri) =
       createdAt: firestore.FieldValue.serverTimestamp(),
     });
 
-    const newPost = await postRef.get();
-    return { success: true, post: { id: newPost.id, ...newPost.data() } };
+    // ✅ Use a real JS Date as createdAt locally
+    // serverTimestamp() is null on client until server confirms
+    // The real-time listener will update it with the real value shortly
+    const newPost = {
+      id: postRef.id,
+      userId,
+      userName,
+      userAvatar,
+      text,
+      imageUrl,
+      likes: [],
+      commentsCount: 0,
+      createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
+    };
+
+    return { success: true, post: newPost };
   } catch (error) {
     return { success: false, error: error.message };
   }
 };
-
 // Fetch all posts (latest first)
 export const fetchPosts = async () => {
   try {
@@ -41,7 +54,15 @@ export const fetchPosts = async () => {
       .limit(50)
       .get();
 
-    const posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const posts = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : Date.now(),
+      };
+    });
+
     return { success: true, posts };
   } catch (error) {
     return { success: false, error: error.message };
@@ -103,7 +124,6 @@ export const addComment = async (postId, userId, userName, userAvatar, text) => 
   try {
     const postRef = firestore().collection(COLLECTIONS.POSTS).doc(postId);
 
-    // Add comment to subcollection
     const commentRef = await postRef.collection(COLLECTIONS.COMMENTS).add({
       userId,
       userName,
@@ -112,7 +132,6 @@ export const addComment = async (postId, userId, userName, userAvatar, text) => 
       createdAt: firestore.FieldValue.serverTimestamp(),
     });
 
-    // Increment commentsCount
     await postRef.update({
       commentsCount: firestore.FieldValue.increment(1),
     });

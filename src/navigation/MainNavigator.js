@@ -139,11 +139,25 @@ const MainNavigator = () => (
         },
       }}
     />
-    <Stack.Screen
-      name="Comments"
-      component={CommentsScreen}
-      options={{ title: 'Comments' }}
-    />
+   <Stack.Screen
+  name="Comments"
+  component={CommentsScreen}
+  options={{
+    title: 'Comments',
+    headerStyle: {
+      backgroundColor: colors.surface,
+      elevation: 2,
+      shadowOpacity: 0.1,
+    },
+    headerTintColor: colors.primary,        // ✅ makes back arrow visible (indigo)
+    headerTitleStyle: {
+      fontWeight: fonts.weights.bold,
+      fontSize: fonts.sizes.lg,
+      color: colors.text.primary,           // ✅ dark title text
+    },
+    headerBackTitleVisible: false,           // ✅ hides "Back" text on iOS
+  }}
+/>
     <Stack.Screen
       name="UserProfile"
       component={UserProfileScreen}

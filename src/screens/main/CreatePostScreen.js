@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet,
-  TouchableOpacity, Image, Alert, ScrollView,
-  KeyboardAvoidingView, Platform,
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Alert,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { addPost, setCreating } from '../../store/slices/postsSlice';
 import { createPost } from '../../services/postService';
-import Button from '../../components/common/Button';
 import Avatar from '../../components/common/Avatar';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
@@ -23,14 +30,11 @@ const CreatePostScreen = ({ navigation }) => {
   const [selectedImage, setSelectedImage] = useState(null);
 
   const handlePickImage = () => {
-    launchImageLibrary(
-      { mediaType: 'photo', quality: 0.8 },
-      (response) => {
-        if (!response.didCancel && response.assets?.[0]) {
-          setSelectedImage(response.assets[0]);
-        }
-      },
-    );
+    launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, response => {
+      if (!response.didCancel && response.assets?.[0]) {
+        setSelectedImage(response.assets[0]);
+      }
+    });
   };
 
   const handleSubmit = async () => {
@@ -40,6 +44,7 @@ const CreatePostScreen = ({ navigation }) => {
     }
 
     dispatch(setCreating(true));
+
     const result = await createPost(
       profile.uid,
       profile.name,
@@ -48,12 +53,16 @@ const CreatePostScreen = ({ navigation }) => {
       selectedImage?.uri || null,
     );
 
+    // ✅ Always reset creating state first
+    dispatch(setCreating(false));
+
     if (result.success) {
+      // ✅ Add to Redux immediately so feed updates right away
       dispatch(addPost(result.post));
+      // ✅ Navigate back AFTER dispatch
       navigation.goBack();
     } else {
-      dispatch(setCreating(false));
-      Alert.alert('Error', result.error);
+      Alert.alert('Error', result.error || 'Failed to create post');
     }
   };
 
@@ -62,29 +71,22 @@ const CreatePostScreen = ({ navigation }) => {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>New Post</Text>
-          <Button
-            title="Post"
-            onPress={handleSubmit}
-            isLoading={isCreating}
-            style={styles.postButton}
-          />
-        </View>
-
-        {/* User Info */}
+      <ScrollView
+        style={styles.container}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ flexGrow: 1 }}
+      >
+        {/* User Info Row */}
         <View style={styles.userRow}>
           <Avatar
             uri={profile?.profilePicture}
             name={profile?.name}
-            size={48}
+            size={46}
           />
-          <Text style={styles.userName}>{profile?.name}</Text>
+          <View style={styles.userText}>
+            <Text style={styles.userName}>{profile?.name}</Text>
+            <Text style={styles.userSubtext}>Posting publicly</Text>
+          </View>
         </View>
 
         {/* Text Input */}
@@ -119,40 +121,52 @@ const CreatePostScreen = ({ navigation }) => {
         )}
 
         {/* Add Image Button */}
-        <TouchableOpacity style={styles.addImageButton} onPress={handlePickImage}>
+        <TouchableOpacity
+          style={styles.addImageButton}
+          onPress={handlePickImage}
+          disabled={isCreating}
+        >
           <Text style={styles.addImageIcon}>🖼️</Text>
           <Text style={styles.addImageText}>
             {selectedImage ? 'Change Image' : 'Add Image'}
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* ✅ Bottom Post Button — always visible */}
+      <View style={styles.bottomBar}>
+        <TouchableOpacity
+          style={styles.cancelBtn}
+          onPress={() => navigation.goBack()}
+          disabled={isCreating}
+        >
+          <Text style={styles.cancelText}>Cancel</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.postBtn,
+            !text.trim() && !selectedImage && styles.postBtnDisabled,
+          ]}
+          onPress={handleSubmit}
+          disabled={isCreating || (!text.trim() && !selectedImage)}
+          activeOpacity={0.8}
+        >
+          {isCreating ? (
+            <ActivityIndicator color={colors.text.white} size="small" />
+          ) : (
+            <Text style={styles.postBtnText}>Post</Text>
+          )}
+        </TouchableOpacity>
+      </View>
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  cancelText: {
-    color: colors.text.secondary,
-    fontSize: fonts.sizes.md,
-  },
-  headerTitle: {
-    fontSize: fonts.sizes.lg,
-    fontWeight: fonts.weights.bold,
-    color: colors.text.primary,
-  },
-  postButton: {
-    height: 36,
-    paddingHorizontal: spacing.md,
-    borderRadius: 18,
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
   },
   userRow: {
     flexDirection: 'row',
@@ -160,10 +174,18 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.sm,
   },
+  userText: {
+    flex: 1,
+  },
   userName: {
     fontSize: fonts.sizes.md,
     fontWeight: fonts.weights.semiBold,
     color: colors.text.primary,
+  },
+  userSubtext: {
+    fontSize: fonts.sizes.xs,
+    color: colors.text.secondary,
+    marginTop: 2,
   },
   textInput: {
     fontSize: fonts.sizes.lg,
@@ -171,6 +193,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     minHeight: 120,
     textAlignVertical: 'top',
+    lineHeight: 24,
   },
   charCount: {
     textAlign: 'right',
@@ -200,7 +223,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  removeImageText: { color: colors.text.white, fontWeight: fonts.weights.bold },
+  removeImageText: {
+    color: colors.text.white,
+    fontWeight: fonts.weights.bold,
+    fontSize: 12,
+  },
   addImageButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -213,7 +240,53 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   addImageIcon: { fontSize: 22 },
-  addImageText: { color: colors.text.secondary, fontSize: fonts.sizes.md },
+  addImageText: {
+    color: colors.text.secondary,
+    fontSize: fonts.sizes.md,
+  },
+
+  // ── Bottom action bar ────────────────────────────────────────
+  bottomBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  cancelBtn: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  cancelText: {
+    color: colors.text.secondary,
+    fontSize: fonts.sizes.md,
+    fontWeight: fonts.weights.medium,
+  },
+  postBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xl,
+    borderRadius: 20,
+    minWidth: 90,
+    alignItems: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  postBtnDisabled: {
+    backgroundColor: colors.border,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  postBtnText: {
+    color: colors.text.white,
+    fontSize: fonts.sizes.md,
+    fontWeight: fonts.weights.bold,
+  },
 });
 
 export default CreatePostScreen;

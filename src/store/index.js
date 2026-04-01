@@ -9,8 +9,18 @@ export const store = configureStore({
     posts: postsReducer,
     profile: profileReducer,
   },
-  middleware: (getDefaultMiddleware) =>
+  middleware: getDefaultMiddleware =>
     getDefaultMiddleware({
-      serializableCheck: false,
+      serializableCheck: {
+        // Firebase Timestamps aren't serializable — tell Redux to ignore them
+        ignoredActions: [
+          'auth/setUser',
+          'auth/setProfile',
+          'posts/setPosts',
+          'posts/addPost',
+          'posts/updatePost',
+        ],
+        ignoredPaths: ['auth.user', 'auth.profile', 'posts.posts'],
+      },
     }),
 });

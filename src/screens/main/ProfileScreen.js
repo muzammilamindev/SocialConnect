@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Alert, Image,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Image,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -46,7 +51,7 @@ const ProfileScreen = () => {
   };
 
   const handlePickPhoto = () => {
-    launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, async (response) => {
+    launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, async response => {
       if (!response.didCancel && response.assets?.[0]) {
         const asset = response.assets[0];
         setIsUploadingPhoto(true);
@@ -170,11 +175,7 @@ const ProfileScreen = () => {
 
       {/* Logout */}
       <View style={styles.logoutContainer}>
-        <Button
-          title="Logout"
-          variant="secondary"
-          onPress={handleLogout}
-        />
+        <Button title="Logout" variant="secondary" onPress={handleLogout} />
       </View>
     </ScrollView>
   );

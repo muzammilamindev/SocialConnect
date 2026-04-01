@@ -36,9 +36,9 @@ const Input = ({
           style={[styles.input, multiline && styles.multiline]}
           value={value}
           onChangeText={onChangeText}
-          onBlur={() => {
+          onBlur={(e) => {
             setIsFocused(false);
-            onBlur && onBlur();
+            onBlur && onBlur(e);
           }}
           onFocus={() => setIsFocused(true)}
           placeholder={placeholder}

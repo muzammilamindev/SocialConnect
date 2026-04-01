@@ -1,93 +1,141 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import {
-  View, FlatList, StyleSheet, Text,
+  View,
+  FlatList,
+  StyleSheet,
+  Text,
   RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import {
-  setPosts, toggleLike, setPostsLoading,
-} from '../../store/slices/postsSlice';
-import { fetchPosts, toggleLikePost } from '../../services/postService';
+import { toggleLike } from '../../store/slices/postsSlice';
+import { toggleLikePost } from '../../services/postService';
+import { saveNotificationToFirestore } from '../../services/notificationService';
+import usePosts from '../../hooks/usePosts';
 import PostCard from '../../components/post/PostCard';
-import Loader from '../../components/common/Loader';
+import PostSkeleton from '../../components/post/PostSkeleton';
+import LottieAnimation from '../../components/common/LottieAnimation';
+import NetworkBanner from '../../components/common/NetworkBanner';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { spacing } from '../../theme/spacing';
 
+const SKELETON_COUNT = 4;
+
 const HomeScreen = ({ navigation }) => {
   const dispatch = useDispatch();
-  const { posts, isLoading } = useSelector(state => state.posts);
   const { profile } = useSelector(state => state.auth);
+  const { posts, isLoading } = usePosts();
 
-  const loadPosts = useCallback(async () => {
-    dispatch(setPostsLoading(true));
-    const result = await fetchPosts();
-    if (result.success) {
-      dispatch(setPosts(result.posts));
-    }
-  }, [dispatch]);
-
-  useEffect(() => {
-    loadPosts();
-  }, [loadPosts]);
-
-  const handleLike = async (postId) => {
-    if (!profile?.uid) return;
-    dispatch(toggleLike({ postId, userId: profile.uid }));
-    await toggleLikePost(postId, profile.uid);
-  };
-
-  const handleComment = (post) => {
-    navigation.navigate('Comments', { post });
-  };
-
-  const handleUserPress = (userId) => {
-    if (userId === profile?.uid) {
-      navigation.navigate('Profile');
-    } else {
-      navigation.navigate('UserProfile', { userId });
-    }
-  };
-
-  const renderPost = ({ item }) => (
-    <PostCard
-      post={item}
-      onLike={handleLike}
-      onComment={handleComment}
-      onUserPress={handleUserPress}
-    />
+  const handleLike = useCallback(
+    async postId => {
+      if (!profile?.uid) return;
+      dispatch(toggleLike({ postId, userId: profile.uid }));
+      const result = await toggleLikePost(postId, profile.uid);
+      if (result.success && result.liked) {
+        const post = posts.find(p => p.id === postId);
+        if (post && post.userId !== profile.uid) {
+          await saveNotificationToFirestore(post.userId, {
+            type: 'like',
+            fromUserId: profile.uid,
+            fromUserName: profile.name,
+            postId,
+            message: `${profile.name} liked your post`,
+          });
+        }
+      }
+    },
+    [dispatch, posts, profile],
   );
 
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <Text style={styles.emptyIcon}>🌐</Text>
-      <Text style={styles.emptyTitle}>No posts yet</Text>
-      <Text style={styles.emptySubtitle}>
-        Be the first to share something!
-      </Text>
+  const handleComment = useCallback(
+    post => navigation.navigate('Comments', { post }),
+    [navigation],
+  );
+
+  const handleUserPress = useCallback(
+    userId => {
+      if (userId === profile?.uid) {
+        navigation.navigate('Profile');
+      } else {
+        navigation.navigate('UserProfile', { userId });
+      }
+    },
+    [navigation, profile?.uid],
+  );
+
+  const renderSkeletons = () => (
+    <View>
+      {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+        <PostSkeleton key={`skeleton-${i}`} />
+      ))}
     </View>
   );
 
-  if (isLoading && posts.length === 0) {
-    return <Loader message="Loading feed..." />;
-  }
+  const renderEmpty = () => {
+    if (isLoading) return null;
+    return (
+      <View style={styles.emptyContainer}>
+        <LottieAnimation
+          source={require('../../assets/animations/empty-feed.json')}
+          width={200}
+          height={200}
+          loop
+          autoPlay
+        />
+        <Text style={styles.emptyTitle}>No posts yet</Text>
+        <Text style={styles.emptySubtitle}>
+          Tap "+ Post" to share something with the world!
+        </Text>
+      </View>
+    );
+  };
+
+  const renderPost = useCallback(
+    ({ item }) => (
+      <PostCard
+        post={item}
+        onLike={handleLike}
+        onComment={handleComment}
+        onUserPress={handleUserPress}
+      />
+    ),
+    [handleLike, handleComment, handleUserPress],
+  );
+
+  const keyExtractor = useCallback(item => item.id, []);
 
   return (
     <View style={styles.container}>
+      <NetworkBanner />
+
       <FlatList
-        data={posts}
-        keyExtractor={item => item.id}
+        data={isLoading && posts.length === 0 ? [] : posts}
+        keyExtractor={keyExtractor}
         renderItem={renderPost}
+        
+        ListHeaderComponent={
+          isLoading && posts.length === 0 ? renderSkeletons() : null
+        }
         ListEmptyComponent={renderEmpty}
-        contentContainerStyle={posts.length === 0 && styles.emptyList}
+        contentContainerStyle={[
+          styles.listContent,
+
+          !isLoading && posts.length === 0 && styles.emptyList,
+        ]}
         refreshControl={
           <RefreshControl
-            refreshing={isLoading}
-            onRefresh={loadPosts}
+            refreshing={isLoading && posts.length > 0}
             colors={[colors.primary]}
+            tintColor={colors.primary}
           />
         }
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews
+        maxToRenderPerBatch={8}
+        windowSize={10}
+        initialNumToRender={6}
+        updateCellsBatchingPeriod={50}
       />
     </View>
   );
@@ -98,12 +146,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  listContent: {
+    paddingBottom: spacing.xl,
+  },
+  emptyList: {
+    flexGrow: 1,
+  },
   feedHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: spacing.md,
+    paddingHorizontal: spacing.md,
     paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+    backgroundColor: colors.background,
   },
   feedTitle: {
     fontSize: fonts.sizes.xl,
@@ -125,21 +181,22 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 80,
+    paddingHorizontal: spacing.xl,
+    marginTop: -40,
   },
-  emptyList: { flexGrow: 1 },
-  emptyIcon: { fontSize: 64, 
-    marginBottom: spacing.md
-   },
   emptyTitle: {
     fontSize: fonts.sizes.xl,
     fontWeight: fonts.weights.bold,
     color: colors.text.primary,
+    marginTop: spacing.md,
+    textAlign: 'center',
   },
   emptySubtitle: {
     fontSize: fonts.sizes.md,
     color: colors.text.secondary,
     marginTop: spacing.xs,
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });
 
