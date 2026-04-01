@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';  // ← add useCallback
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
   TextInput, TouchableOpacity, KeyboardAvoidingView,
@@ -22,18 +22,18 @@ const CommentsScreen = ({ route, navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
-  // ✅ Wrap in useCallback so it can be safely listed as a dependency
+  // Wrap in useCallback so it can be safely listed as a dependency
   const loadComments = useCallback(async () => {
     setIsLoading(true);
     const result = await fetchComments(post.id);
     if (result.success) setComments(result.comments);
     setIsLoading(false);
-  }, [post.id]); // ← post.id is the only external value used
+  }, [post.id]); // post.id is the only external value used
 
   useEffect(() => {
     navigation.setOptions({ title: 'Comments' });
     loadComments();
-  }, [loadComments, navigation]); // ✅ No more red underline
+  }, [loadComments, navigation]); 
 
   const handleSendComment = async () => {
     if (!commentText.trim()) return;

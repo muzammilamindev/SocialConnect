@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react'; // ← add useCallback
+import React, { useEffect, useCallback } from 'react'; 
 import {
   View, Text, StyleSheet, ScrollView, ActivityIndicator,
 } from 'react-native';
@@ -16,8 +16,6 @@ const UserProfileScreen = ({ route, navigation }) => {
   const { userId } = route.params;
   const dispatch = useDispatch();
   const { viewingProfile, isLoading } = useSelector(state => state.profile);
-
-  // ✅ Wrap in useCallback — dependencies are userId, dispatch, navigation
   const loadProfile = useCallback(async () => {
     dispatch(setProfileLoading(true));
     const result = await fetchUserProfile(userId);
@@ -25,11 +23,11 @@ const UserProfileScreen = ({ route, navigation }) => {
       dispatch(setViewingProfile(result.profile));
       navigation.setOptions({ title: result.profile.name });
     }
-  }, [userId, dispatch, navigation]); // ← all values used inside are listed
+  }, [userId, dispatch, navigation]); // all values used inside are listed
 
   useEffect(() => {
     loadProfile();
-  }, [loadProfile]); // ✅ No more red underline
+  }, [loadProfile]);
 
   if (isLoading) {
     return (

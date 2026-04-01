@@ -11,7 +11,7 @@ const Button = ({
   title,
   onPress,
   isLoading = false,
-  variant = 'primary',   // 'primary' | 'secondary' | 'outline'
+  variant = 'primary',
   disabled = false,
   style,
 }) => {

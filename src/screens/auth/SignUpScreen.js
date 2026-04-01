@@ -19,7 +19,7 @@ const validationSchema = Yup.object({
   email: Yup.string().email('Invalid email').required('Email is required'),
   password: Yup.string().min(6, 'At least 6 characters').required('Password is required'),
   confirmPassword: Yup.string()
-    .oneOf([Yup.ref('password'), null], 'Passwords do not match') // ← add null
+    .oneOf([Yup.ref('password'), null], 'Passwords do not match')
     .required('Confirm your password'),
 });
 
@@ -55,7 +55,7 @@ const SignUpScreen = ({ navigation }) => {
       } catch (error) {
         Alert.alert('Error', error.message);
       } finally {
-        dispatch(setLoading(false)); // ← always reset loading
+        dispatch(setLoading(false));
       }
     },
   });
