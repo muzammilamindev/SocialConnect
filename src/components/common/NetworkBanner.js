@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { Text, StyleSheet, Animated } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
@@ -46,7 +46,7 @@ const NetworkBanner = () => {
     });
 
     return () => unsubscribe();
-  }, [showBannerAnim, hideBannerAnim]); // No more red underline
+  }, [showBannerAnim, hideBannerAnim]);
 
   if (!showBanner) return null;
 

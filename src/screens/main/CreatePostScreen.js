@@ -16,12 +16,14 @@ import { useDispatch, useSelector } from 'react-redux';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { addPost, setCreating } from '../../store/slices/postsSlice';
 import { createPost } from '../../services/postService';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from '../../components/common/Avatar';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { spacing } from '../../theme/spacing';
 
 const CreatePostScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const { profile } = useSelector(state => state.auth);
   const { isCreating } = useSelector(state => state.posts);
@@ -45,24 +47,74 @@ const CreatePostScreen = ({ navigation }) => {
 
     dispatch(setCreating(true));
 
-    const result = await createPost(
-      profile.uid,
-      profile.name,
-      profile.profilePicture || '',
-      text.trim(),
-      selectedImage?.uri || null,
-    );
+    const safetyTimeout = setTimeout(() => {
+      dispatch(setCreating(false));
+    }, 15000);
 
-    // ✅ Always reset creating state first
-    dispatch(setCreating(false));
+    try {
+      if (!selectedImage) {
+        
+        const localPost = {
+          id: `local_${Date.now()}`,
+          userId: profile.uid,
+          userName: profile.name,
+          userAvatar: profile.profilePicture || '',
+          text: text.trim(),
+          imageUrl: '',
+          likes: [],
+          commentsCount: 0,
+          createdAt: {
+            seconds: Math.floor(Date.now() / 1000),
+            nanoseconds: 0,
+          },
+        };
 
-    if (result.success) {
-      // ✅ Add to Redux immediately so feed updates right away
-      dispatch(addPost(result.post));
-      // ✅ Navigate back AFTER dispatch
-      navigation.goBack();
-    } else {
-      Alert.alert('Error', result.error || 'Failed to create post');
+        dispatch(addPost(localPost));
+        clearTimeout(safetyTimeout);
+        dispatch(setCreating(false));
+        navigation.goBack();
+
+        createPost(
+          profile.uid,
+          profile.name,
+          profile.profilePicture || '',
+          text.trim(),
+          null,
+        ).catch(err => console.warn('Post save error:', err));
+      } else {
+       
+        const localPost = {
+          id: `local_${Date.now()}`,
+          userId: profile.uid,
+          userName: profile.name,
+          userAvatar: profile.profilePicture || '',
+          text: text.trim(),
+          imageUrl: selectedImage.uri,
+          likes: [],
+          commentsCount: 0,
+          createdAt: {
+            seconds: Math.floor(Date.now() / 1000),
+            nanoseconds: 0,
+          },
+        };
+
+        dispatch(addPost(localPost));
+        clearTimeout(safetyTimeout);
+        dispatch(setCreating(false));
+        navigation.goBack();
+        
+        createPost(
+          profile.uid,
+          profile.name,
+          profile.profilePicture || '',
+          text.trim(),
+          selectedImage.uri,
+        ).catch(err => console.warn('Post upload error:', err));
+      }
+    } catch (err) {
+      clearTimeout(safetyTimeout);
+      dispatch(setCreating(false));
+      Alert.alert('Error', err.message || 'Something went wrong');
     }
   };
 
@@ -77,7 +129,7 @@ const CreatePostScreen = ({ navigation }) => {
         contentContainerStyle={{ flexGrow: 1 }}
       >
         {/* User Info Row */}
-        <View style={styles.userRow}>
+        <View style={[styles.userRow, { paddingTop: insets.top + spacing.sm }]}>
           <Avatar
             uri={profile?.profilePicture}
             name={profile?.name}
@@ -133,7 +185,7 @@ const CreatePostScreen = ({ navigation }) => {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* ✅ Bottom Post Button — always visible */}
+      {/* Bottom Post Button — always visible */}
       <View style={styles.bottomBar}>
         <TouchableOpacity
           style={styles.cancelBtn}
@@ -172,6 +224,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.md,
+    paddingTop: spacing.sm,
     gap: spacing.sm,
   },
   userText: {
@@ -245,7 +298,7 @@ const styles = StyleSheet.create({
     fontSize: fonts.sizes.md,
   },
 
-  // ── Bottom action bar ────────────────────────────────────────
+  // Bottom action bar
   bottomBar: {
     flexDirection: 'row',
     alignItems: 'center',

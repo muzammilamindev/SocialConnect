@@ -7,6 +7,7 @@ import {
   RefreshControl,
   TouchableOpacity,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { toggleLike } from '../../store/slices/postsSlice';
 import { toggleLikePost } from '../../services/postService';
@@ -23,6 +24,7 @@ import { spacing } from '../../theme/spacing';
 const SKELETON_COUNT = 4;
 
 const HomeScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const { profile } = useSelector(state => state.auth);
   const { posts, isLoading } = usePosts();
@@ -64,6 +66,19 @@ const HomeScreen = ({ navigation }) => {
     [navigation, profile?.uid],
   );
 
+  const renderHeader = () => (
+    <View style={[styles.feedHeader, { paddingTop: insets.top + 8 }]}>
+      <Text style={styles.feedTitle}>Social Connect</Text>
+      <TouchableOpacity
+        style={styles.createButton}
+        onPress={() => navigation.navigate('CreatePost')}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.createButtonText}>+ Post</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   const renderSkeletons = () => (
     <View>
       {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
@@ -72,6 +87,7 @@ const HomeScreen = ({ navigation }) => {
     </View>
   );
 
+  // Empty feed Lottie
   const renderEmpty = () => {
     if (isLoading) return null;
     return (
@@ -108,19 +124,19 @@ const HomeScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <NetworkBanner />
-
       <FlatList
         data={isLoading && posts.length === 0 ? [] : posts}
         keyExtractor={keyExtractor}
         renderItem={renderPost}
-        
         ListHeaderComponent={
-          isLoading && posts.length === 0 ? renderSkeletons() : null
+          <View>
+            {renderHeader()}
+            {isLoading && posts.length === 0 && renderSkeletons()}
+          </View>
         }
         ListEmptyComponent={renderEmpty}
         contentContainerStyle={[
           styles.listContent,
-
           !isLoading && posts.length === 0 && styles.emptyList,
         ]}
         refreshControl={
@@ -157,9 +173,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.md,
     backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    marginBottom: spacing.sm,
   },
   feedTitle: {
     fontSize: fonts.sizes.xl,

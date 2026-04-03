@@ -2,49 +2,43 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
 
-// Handles ALL possible timestamp formats from Firestore
-export const formatTimeAgo = (timestamp) => {
+export const formatTimeAgo = timestamp => {
   if (!timestamp) return 'Just now';
 
-  // Firestore Timestamp object with toDate() method
+  let date = null;
+
   if (typeof timestamp?.toDate === 'function') {
-    return dayjs(timestamp.toDate()).fromNow();
+    date = timestamp.toDate();
+  } else if (timestamp?.seconds) {
+    date = new Date(timestamp.seconds * 1000);
+  } else if (timestamp instanceof Date) {
+    date = timestamp;
+  } else if (typeof timestamp === 'number' && timestamp > 0) {
+    date = new Date(timestamp);
+  } else if (typeof timestamp === 'string') {
+    date = new Date(timestamp);
   }
 
-  // Plain object with seconds { seconds, nanoseconds }
-  if (timestamp?.seconds) {
-    return dayjs(new Date(timestamp.seconds * 1000)).fromNow();
-  }
+  if (!date || isNaN(date.getTime())) return 'Just now';
 
-  // Already a JS Date instance
-  if (timestamp instanceof Date) {
-    return dayjs(timestamp).fromNow();
-  }
+  const secondsAgo = Math.floor((Date.now() - date.getTime()) / 1000);
 
-  // ✅ Number (milliseconds from toMillis())
-  if (typeof timestamp === 'number' && timestamp > 0) {
-    return dayjs(timestamp).fromNow();
-  }
+  if (secondsAgo < 10) return 'Just now';
+  if (secondsAgo < 60) return `${secondsAgo}s ago`;
+  if (secondsAgo < 120) return '1 min ago';
 
-  // ISO string
-  if (typeof timestamp === 'string') {
-    return dayjs(timestamp).fromNow();
-  }
-
-  return 'Just now';
+  return dayjs(date).fromNow();
 };
 
 export const truncate = (text, maxLength = 100) => {
   if (!text) return '';
-  return text.length > maxLength
-    ? `${text.substring(0, maxLength)}...`
-    : text;
+  return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
 };
 
-export const formatCount = (count) => {
+export const formatCount = count => {
   if (!count) return '0';
-  if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
-  if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+  if (count >= 10000000000) return `${(count / 10000000000).toFixed(1)}M`;
+  if (count >= 100000) return `${(count / 100000).toFixed(1)}K`;
   return String(count);
 };
 
@@ -58,13 +52,20 @@ export const getInitials = (name = '') =>
 
 export const stringToColor = (str = '') => {
   const palette = [
-    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
-    '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
-    '#BB8FCE', '#85C1E9',
+    '#FF6B6B',
+    '#4ECDC4',
+    '#45B7D1',
+    '#96CEB4',
+    '#FFEAA7',
+    '#DDA0DD',
+    '#98D8C8',
+    '#F7DC6F',
+    '#BB8FCE',
+    '#85C1E9',
   ];
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    hash = str.charCodeAt(i) + ((hash < 5) - hash);
   }
   return palette[Math.abs(hash) % palette.length];
 };

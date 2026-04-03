@@ -3,6 +3,7 @@ import { Animated, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { spacing } from '../../theme/spacing';
+import { SCREEN } from '../../theme/responsive';
 
 const TOAST_COLORS = {
   success: { bg: colors.success, icon: '✅' },
@@ -17,7 +18,6 @@ const Toast = ({ toast, onHide }) => {
 
   useEffect(() => {
     if (toast?.visible) {
-      // Slide in from top
       Animated.parallel([
         Animated.spring(slideAnim, {
           toValue: 0,
@@ -32,7 +32,6 @@ const Toast = ({ toast, onHide }) => {
         }),
       ]).start();
     } else {
-      // Slide out
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: -100,
@@ -67,10 +66,7 @@ const Toast = ({ toast, onHide }) => {
       <Text style={styles.message} numberOfLines={2}>
         {toast.message}
       </Text>
-      <TouchableOpacity
-        onPress={onHide}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-      >
+      <TouchableOpacity onPress={onHide} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <Text style={styles.close}>✕</Text>
       </TouchableOpacity>
     </Animated.View>
@@ -95,6 +91,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 10,
     gap: spacing.sm,
+    maxWidth: SCREEN.width - spacing.md * 2,
   },
   icon: {
     fontSize: 18,

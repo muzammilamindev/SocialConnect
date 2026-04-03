@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View, Text, StyleSheet, TouchableOpacity, Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { forgotPassword } from '../../services/authService';
@@ -22,7 +20,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
   const formik = useFormik({
     initialValues: { email: '' },
     validationSchema,
-    onSubmit: async (values) => {
+    onSubmit: async values => {
       setIsLoading(true);
       const result = await forgotPassword(values.email);
       setIsLoading(false);
@@ -42,7 +40,10 @@ const ForgotPasswordScreen = ({ navigation }) => {
         <Text style={styles.message}>
           Check your inbox for password reset instructions.
         </Text>
-        <Button title="Back to Login" onPress={() => navigation.navigate('Login')} />
+        <Button
+          title="Back to Login"
+          onPress={() => navigation.navigate('Login')}
+        />
       </View>
     );
   }

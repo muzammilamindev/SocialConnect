@@ -123,7 +123,6 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
 
       {post.text ? <Text style={styles.text}>{post.text}</Text> : null}
 
-      {/* Post Image */}
       {post.imageUrl ? (
         <Image
           source={{ uri: post.imageUrl }}
@@ -132,7 +131,6 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
         />
       ) : null}
 
-      {/* Actions */}
       <View style={styles.actions}>
         <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
           <TouchableOpacity
@@ -168,7 +166,7 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
         animationType="fade"
         onRequestClose={() => setMenuVisible(false)}
       >
-        {/* Backdrop — tap outside to close */}
+
         <TouchableOpacity
           style={styles.modalBackdrop}
           activeOpacity={1}
@@ -189,7 +187,7 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
             {/* Divider */}
             <View style={styles.menuDivider} />
 
-            {/* Cancel */}
+      
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => setMenuVisible(false)}
@@ -296,11 +294,11 @@ const styles = StyleSheet.create({
   },
   likedCount: { color: colors.like },
 
-  // Delete Menu Modal
+
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'flex-end', // slides up from bottom
+    justifyContent: 'flex-end',
     paddingHorizontal: spacing.md,
     paddingBottom: 32,
   },
@@ -322,7 +320,7 @@ const styles = StyleSheet.create({
   menuItemText: {
     fontSize: fonts.sizes.md,
     fontWeight: fonts.weights.semiBold,
-    color: colors.error, // red for destructive action
+    color: colors.error,
   },
   menuItemTextCancel: {
     fontSize: fonts.sizes.md,

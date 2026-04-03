@@ -2,17 +2,33 @@ import firestore from '@react-native-firebase/firestore';
 import storage from '@react-native-firebase/storage';
 import { COLLECTIONS, STORAGE_PATHS } from '../utils/constants';
 
-// Create a new post
-export const createPost = async (userId, userName, userAvatar, text, imageUri) => {
+export const createPost = async (
+  userId,
+  userName,
+  userAvatar,
+  text,
+  imageUri,
+) => {
   try {
     let imageUrl = '';
 
     if (imageUri) {
-      const filename = `${Date.now()}_${userId}`;
-      const ref = storage().ref(`${STORAGE_PATHS.POST_IMAGES}/${filename}`);
-      await ref.putFile(imageUri);
-      imageUrl = await ref.getDownloadURL();
+      try {
+        const filename = `post_${Date.now()}_${userId}`;
+        const ref = storage().ref(`${STORAGE_PATHS.POST_IMAGES}/${filename}`);
+
+        const uploadTask = await ref.putFile(imageUri);
+
+        if (uploadTask.state === 'success') {
+          imageUrl = await ref.getDownloadURL();
+        }
+      } catch (uploadError) {
+        console.warn('Image upload failed:', uploadError);
+        imageUrl = '';
+      }
     }
+
+    const now = Date.now();
 
     const postRef = await firestore().collection(COLLECTIONS.POSTS).add({
       userId,
@@ -22,12 +38,11 @@ export const createPost = async (userId, userName, userAvatar, text, imageUri) =
       imageUrl,
       likes: [],
       commentsCount: 0,
+
       createdAt: firestore.FieldValue.serverTimestamp(),
+      createdAtClient: now,
     });
 
-    // ✅ Use a real JS Date as createdAt locally
-    // serverTimestamp() is null on client until server confirms
-    // The real-time listener will update it with the real value shortly
     const newPost = {
       id: postRef.id,
       userId,
@@ -37,7 +52,10 @@ export const createPost = async (userId, userName, userAvatar, text, imageUri) =
       imageUrl,
       likes: [],
       commentsCount: 0,
-      createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
+      createdAt: {
+        seconds: Math.floor(now / 1000),
+        nanoseconds: 0,
+      },
     };
 
     return { success: true, post: newPost };
@@ -45,7 +63,7 @@ export const createPost = async (userId, userName, userAvatar, text, imageUri) =
     return { success: false, error: error.message };
   }
 };
-// Fetch all posts (latest first)
+
 export const fetchPosts = async () => {
   try {
     const snapshot = await firestore()
@@ -56,10 +74,19 @@ export const fetchPosts = async () => {
 
     const posts = snapshot.docs.map(doc => {
       const data = doc.data();
+
       return {
         id: doc.id,
         ...data,
-        createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : Date.now(),
+        createdAt: data.createdAt
+          ? {
+              seconds: data.createdAt.seconds,
+              nanoseconds: data.createdAt.nanoseconds ?? 0,
+            }
+          : {
+              seconds: Math.floor((data.createdAtClient || Date.now()) / 1000),
+              nanoseconds: 0,
+            },
       };
     });
 
@@ -93,7 +120,7 @@ export const toggleLikePost = async (postId, userId) => {
 };
 
 // Delete post
-export const deletePost = async (postId) => {
+export const deletePost = async postId => {
   try {
     await firestore().collection(COLLECTIONS.POSTS).doc(postId).delete();
     return { success: true };
@@ -103,7 +130,7 @@ export const deletePost = async (postId) => {
 };
 
 // Fetch comments for a post
-export const fetchComments = async (postId) => {
+export const fetchComments = async postId => {
   try {
     const snapshot = await firestore()
       .collection(COLLECTIONS.POSTS)
@@ -112,7 +139,11 @@ export const fetchComments = async (postId) => {
       .orderBy('createdAt', 'asc')
       .get();
 
-    const comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const comments = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
     return { success: true, comments };
   } catch (error) {
     return { success: false, error: error.message };
@@ -120,7 +151,13 @@ export const fetchComments = async (postId) => {
 };
 
 // Add a comment
-export const addComment = async (postId, userId, userName, userAvatar, text) => {
+export const addComment = async (
+  postId,
+  userId,
+  userName,
+  userAvatar,
+  text,
+) => {
   try {
     const postRef = firestore().collection(COLLECTIONS.POSTS).doc(postId);
 
@@ -138,6 +175,28 @@ export const addComment = async (postId, userId, userName, userAvatar, text) => 
 
     const comment = await commentRef.get();
     return { success: true, comment: { id: comment.id, ...comment.data() } };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const deleteComment = async (postId, commentId) => {
+  try {
+    await firestore()
+      .collection(COLLECTIONS.POSTS)
+      .doc(postId)
+      .collection(COLLECTIONS.COMMENTS)
+      .doc(commentId)
+      .delete();
+
+    await firestore()
+      .collection(COLLECTIONS.POSTS)
+      .doc(postId)
+      .update({
+        commentsCount: firestore.FieldValue.increment(-1),
+      });
+
+    return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
   }

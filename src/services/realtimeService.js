@@ -1,6 +1,20 @@
 import firestore from '@react-native-firebase/firestore';
 import { COLLECTIONS } from '../utils/constants';
 
+const convertDoc = doc => {
+  const data = doc.data();
+  return {
+    id: doc.id,
+    ...data,
+    createdAt: data.createdAt
+      ? {
+          seconds: data.createdAt.seconds,
+          nanoseconds: data.createdAt.nanoseconds ?? 0,
+        }
+      : { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
+  };
+};
+
 // Subscribe to real-time post feed
 export const subscribeToPostFeed = (onPostsUpdate, onError) => {
   const unsubscribe = firestore()
@@ -9,22 +23,18 @@ export const subscribeToPostFeed = (onPostsUpdate, onError) => {
     .limit(50)
     .onSnapshot(
       snapshot => {
-        const posts = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        const posts = snapshot.docs.map(convertDoc);
         onPostsUpdate(posts);
       },
       error => {
         console.warn('Real-time posts error:', error);
-        onError && onError(error);
+        onError?.(error);
       },
     );
-
   return unsubscribe;
 };
 
-// Subscribe to real-time comments for a post
+// Subscribe to real-time comments
 export const subscribeToComments = (postId, onCommentsUpdate, onError) => {
   const unsubscribe = firestore()
     .collection(COLLECTIONS.POSTS)
@@ -33,36 +43,29 @@ export const subscribeToComments = (postId, onCommentsUpdate, onError) => {
     .orderBy('createdAt', 'asc')
     .onSnapshot(
       snapshot => {
-        const comments = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        const comments = snapshot.docs.map(convertDoc);
         onCommentsUpdate(comments);
       },
       error => {
         console.warn('Real-time comments error:', error);
-        onError && onError(error);
+        onError?.(error);
       },
     );
-
   return unsubscribe;
 };
 
-// Subscribe to like count changes on a single post
 export const subscribeToPostLikes = (postId, onUpdate) => {
   const unsubscribe = firestore()
     .collection(COLLECTIONS.POSTS)
     .doc(postId)
     .onSnapshot(doc => {
       if (doc.exists) {
-        onUpdate({ id: doc.id, ...doc.data() });
+        onUpdate(convertDoc(doc));
       }
     });
-
   return unsubscribe;
 };
 
-// Subscribe to user notifications
 export const subscribeToNotifications = (userId, onUpdate) => {
   const unsubscribe = firestore()
     .collection(COLLECTIONS.USERS)
@@ -71,12 +74,8 @@ export const subscribeToNotifications = (userId, onUpdate) => {
     .orderBy('createdAt', 'desc')
     .limit(20)
     .onSnapshot(snapshot => {
-      const notifications = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const notifications = snapshot.docs.map(convertDoc);
       onUpdate(notifications);
     });
-
   return unsubscribe;
 };

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Provider } from 'react-redux';
-import { store } from './store';
+import { PersistGate } from 'redux-persist/integration/react';
+import { store, persistor } from './store';
 import AppNavigator from './navigation/AppNavigator';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -19,7 +20,6 @@ import {
 registerBackgroundHandler();
 
 const MainApp = () => {
-  // FCM setup
   async function requestUserPermission() {
     const authStatus = await messaging().requestPermission();
     const enabled =
@@ -35,6 +35,7 @@ const MainApp = () => {
     const token = await messaging().getToken();
     console.log('Token = ', token);
   };
+
   useEffect(() => {
     const init = async () => {
       await requestUserPermission();
@@ -63,7 +64,9 @@ const MainApp = () => {
             translucent={false}
           />
           <Provider store={store}>
-            <AppNavigator />
+            <PersistGate loading={null} persistor={persistor}>
+              <AppNavigator />
+            </PersistGate>
           </Provider>
         </SafeAreaProvider>
       </GestureHandlerRootView>

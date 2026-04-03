@@ -1,10 +1,5 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { spacing } from '../../theme/spacing';
@@ -14,11 +9,9 @@ class ErrorBoundary extends React.Component {
     super(props);
     this.state = { hasError: false, error: null };
   }
-
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
-
   componentDidCatch(error, info) {
     console.error('ErrorBoundary caught:', error, info);
   }
@@ -37,14 +30,9 @@ class ErrorBoundary extends React.Component {
             The app hit an unexpected error. Please try again.
           </Text>
           {__DEV__ && (
-            <Text style={styles.devError}>
-              {this.state.error?.message}
-            </Text>
+            <Text style={styles.devError}>{this.state.error?.message}</Text>
           )}
-          <TouchableOpacity
-            style={styles.button}
-            onPress={this.handleReset}
-          >
+          <TouchableOpacity style={styles.button} onPress={this.handleReset}>
             <Text style={styles.buttonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
@@ -63,16 +51,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     padding: spacing.xl,
   },
-  emoji: {
-    fontSize: 64,
-    marginBottom: spacing.lg,
-  },
+  emoji: { fontSize: 64, marginBottom: spacing.lg },
   title: {
     fontSize: fonts.sizes.xl,
     fontWeight: fonts.weights.bold,
     color: colors.text.primary,
     marginBottom: spacing.sm,
-    textAlign: 'center',
   },
   message: {
     fontSize: fonts.sizes.md,

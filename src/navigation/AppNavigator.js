@@ -1,36 +1,64 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
+import { View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import auth from '@react-native-firebase/auth';
-import { setUser, setProfile, clearAuth, setLoading } from '../store/slices/authSlice';
+import {
+  setUser,
+  setProfile,
+  clearAuth,
+  setLoading,
+} from '../store/slices/authSlice';
 import { fetchUserProfile } from '../services/authService';
 import AuthNavigator from './AuthNavigator';
 import MainNavigator from './MainNavigator';
+import SplashScreen from '../screens/SplashScreen';
 import Loader from '../components/common/Loader';
+import Toast from '../components/common/Toast';
+import NetworkBanner from '../components/common/NetworkBanner';
 import useNotifications from '../hooks/useNotifications';
+import useToast from '../hooks/useToast';
 
-// Inner component so it has access to Redux (store is provided by App.jsx)
 const AppContent = () => {
   const dispatch = useDispatch();
-  const { user, isLoading } = useSelector((state) => state.auth);
+  const { user, isLoading } = useSelector(state => state.auth);
+  const { toast, hideToast } = useToast();
+  const [showSplash, setShowSplash] = useState(true);
 
-  // Initializes notifications when user is logged in
   useNotifications();
 
   useEffect(() => {
     dispatch(setLoading(true));
 
-    const unsubscribe = auth().onAuthStateChanged(async (firebaseUser) => {
+    const unsubscribe = auth().onAuthStateChanged(async firebaseUser => {
       if (firebaseUser) {
+        // ✅ Set user first so app doesn't hang
+        dispatch(
+          setUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+          }),
+        );
+
         const profileResult = await fetchUserProfile(firebaseUser.uid);
+
         if (profileResult.success) {
           dispatch(setProfile(profileResult.profile));
+        } else {
+          dispatch(
+            setProfile({
+              uid: firebaseUser.uid,
+              name: firebaseUser.displayName || 'User',
+              email: firebaseUser.email || '',
+              bio: '',
+              profilePicture: firebaseUser.photoURL || '',
+              followers: [],
+              following: [],
+              createdAt: null,
+            }),
+          );
         }
-        dispatch(setUser({
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-        }));
       } else {
         dispatch(clearAuth());
       }
@@ -39,11 +67,21 @@ const AppContent = () => {
     return () => unsubscribe();
   }, [dispatch]);
 
-  if (isLoading) {
-    return <Loader message="Starting up..." />;
+  if (showSplash) {
+    return <SplashScreen onFinish={() => setShowSplash(false)} />;
   }
 
-  return user ? <MainNavigator /> : <AuthNavigator />;
+  if (isLoading) {
+    return <Loader message="Loading..." />;
+  }
+
+  return (
+    <View style={{ flex: 1 }}>
+      {user ? <MainNavigator /> : <AuthNavigator />}
+      <NetworkBanner />
+      <Toast toast={toast} onHide={hideToast} />
+    </View>
+  );
 };
 
 const AppNavigator = () => (

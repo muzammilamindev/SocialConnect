@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { Text, View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import HomeScreen from '../screens/main/HomeScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
@@ -14,14 +14,27 @@ import { fonts } from '../theme/fonts';
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-// Tab icon component
+const TABS = [
+  { name: 'Home', emoji: '🏠', label: 'Feed' },
+  { name: 'Profile', emoji: '👤', label: 'Profile' },
+  { name: 'Settings', emoji: '⚙️', label: 'Settings' },
+];
+
 const TabIcon = ({ emoji, label, focused }) => (
   <View style={styles.tabIcon}>
-    <Text style={styles.tabEmoji}>{emoji}</Text>
+    <Text
+      style={[
+        styles.tabEmoji,
+        
+        { fontFamily: 'System', includeFontPadding: false },
+      ]}
+    >
+      {emoji}
+    </Text>
     <Text
       style={[
         styles.tabLabel,
-        { color: focused ? colors.primary : colors.text.light },
+        { color: focused ? colors.primary : colors.text.dark },
       ]}
       numberOfLines={1}
     >
@@ -31,95 +44,71 @@ const TabIcon = ({ emoji, label, focused }) => (
   </View>
 );
 
-// Bottom Tab Navigator
-const BottomTabs = ({ navigation }) => (
+const BottomTabs = () => (
   <Tab.Navigator
     screenOptions={{
-      headerStyle: {
-        backgroundColor: colors.surface,
-        elevation: 0,
-        shadowOpacity: 0,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-      },
-      headerTitleStyle: {
-        fontSize: fonts.sizes.xl,
-        fontWeight: fonts.weights.bold,
-        color: colors.text.primary,
-      },
-      headerRight: () => (
-        <TouchableOpacity
-          onPress={() => navigation.navigate('CreatePost')}
-          style={styles.headerButton}
-        >
-          <Text style={styles.headerButtonText}>+ Post</Text>
-        </TouchableOpacity>
-      ),
+      headerShown: false,
       tabBarStyle: styles.tabBar,
       tabBarShowLabel: false,
     }}
   >
-    <Tab.Screen
-      name="Home"
-      component={HomeScreen}
-      options={{
-        headerTitle: 'Social Connect',
-        headerRight: () => (
-          <TouchableOpacity
-            onPress={() => navigation.navigate('CreatePost')}
-            style={styles.headerButton}
-          >
-            <Text style={styles.headerButtonText}>+ Post</Text>
-          </TouchableOpacity>
-        ),
-        tabBarIcon: ({ focused }) => (
-          <TabIcon emoji="🏠" label="Home" focused={focused} />
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="Profile"
-      component={ProfileScreen}
-      options={{
-        headerTitle: 'My Profile',
-        headerRight: () => null,
-        tabBarIcon: ({ focused }) => (
-          <TabIcon emoji="👤" label="Profile" focused={focused} />
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="Settings"
-      component={SettingsScreen}
-      options={{
-        headerTitle: 'Settings',
-        headerRight: () => null,
-        tabBarIcon: ({ focused }) => (
-          <TabIcon emoji="⚙️" label="Settings" focused={focused} />
-        ),
-      }}
-    />
+    {TABS.map(tab => (
+      <Tab.Screen
+        key={tab.name}
+        name={tab.name}
+        component={
+          tab.name === 'Home'
+            ? HomeScreen
+            : tab.name === 'Profile'
+            ? ProfileScreen
+            : SettingsScreen
+        }
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon emoji={tab.emoji} label={tab.label} focused={focused} />
+          ),
+        }}
+      />
+    ))}
   </Tab.Navigator>
 );
 
-// Main Stack Navigator (wraps tabs + modals)
+// Custom back button header
+const screenOptions = {
+  headerStyle: {
+    backgroundColor: colors.surface,
+    elevation: 0,
+    shadowOpacity: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  headerTintColor: colors.primary,
+  headerTitleStyle: {
+    fontWeight: fonts.weights.bold,
+    fontSize: fonts.sizes.lg,
+    color: colors.text.primary,
+  },
+  // Smooth horizontal slide transition
+  cardStyleInterpolator: ({ current, layouts }) => ({
+    cardStyle: {
+      transform: [
+        {
+          translateX: current.progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [layouts.screen.width, 0],
+          }),
+        },
+      ],
+      opacity: current.progress.interpolate({
+        inputRange: [0, 0.5, 1],
+        outputRange: [0, 0.8, 1],
+      }),
+    },
+  }),
+};
+
 const MainNavigator = () => (
-  <Stack.Navigator
-    screenOptions={{
-      headerStyle: {
-        backgroundColor: colors.surface,
-        elevation: 0,
-        shadowOpacity: 0,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-      },
-      headerTintColor: colors.text.primary,
-      headerTitleStyle: {
-        fontWeight: fonts.weights.semiBold,
-        fontSize: fonts.sizes.lg,
-      },
-    }}
-  >
+  <Stack.Navigator screenOptions={screenOptions}>
     <Stack.Screen
       name="Tabs"
       component={BottomTabs}
@@ -129,35 +118,28 @@ const MainNavigator = () => (
       name="CreatePost"
       component={CreatePostScreen}
       options={{
+        headerShown: false,
         presentation: 'modal',
-        headerShown: true,
-        title: 'Create Post',
-        headerStyle: {
-          backgroundColor: colors.surface,
-          elevation: 0,
-          shadowOpacity: 0,
-        },
+        // Modal slide-up transition
+        cardStyleInterpolator: ({ current, layouts }) => ({
+          cardStyle: {
+            transform: [
+              {
+                translateY: current.progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [layouts.screen.height, 0],
+                }),
+              },
+            ],
+          },
+        }),
       }}
     />
-   <Stack.Screen
-  name="Comments"
-  component={CommentsScreen}
-  options={{
-    title: 'Comments',
-    headerStyle: {
-      backgroundColor: colors.surface,
-      elevation: 2,
-      shadowOpacity: 0.1,
-    },
-    headerTintColor: colors.primary,        // ✅ makes back arrow visible (indigo)
-    headerTitleStyle: {
-      fontWeight: fonts.weights.bold,
-      fontSize: fonts.sizes.lg,
-      color: colors.text.primary,           // ✅ dark title text
-    },
-    headerBackTitleVisible: false,           // ✅ hides "Back" text on iOS
-  }}
-/>
+    <Stack.Screen
+      name="Comments"
+      component={CommentsScreen}
+      options={{ title: 'Comments' }}
+    />
     <Stack.Screen
       name="UserProfile"
       component={UserProfileScreen}
@@ -171,9 +153,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    height: 60,
-    paddingBottom: 0,
-    paddingTop: 0,
+    height: 65,
+    paddingBottom: 4,
+    paddingTop: 4,
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
@@ -183,16 +165,22 @@ const styles = StyleSheet.create({
   tabIcon: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 8,
-    width: 70,
+    paddingTop: 4,
+    width: 80,
+    minWidth: 80,
   },
   tabEmoji: {
-    fontSize: 20,
+    fontSize: 22,
+    textAlign: 'center',
+    includeFontPadding: false,
+    lineHeight: 26,
   },
   tabLabel: {
-    fontSize: fonts.sizes.xs,
-    marginTop: 3,
+    fontSize: 10,
+    marginTop: 2,
     fontWeight: fonts.weights.medium,
+    textAlign: 'center',
+    width: '100%',
   },
   activeIndicator: {
     position: 'absolute',
@@ -201,18 +189,6 @@ const styles = StyleSheet.create({
     height: 3,
     borderRadius: 2,
     backgroundColor: colors.primary,
-  },
-  headerButton: {
-    marginRight: 16,
-    backgroundColor: colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-  },
-  headerButtonText: {
-    color: colors.text.white,
-    fontSize: fonts.sizes.sm,
-    fontWeight: fonts.weights.semiBold,
   },
 });
 

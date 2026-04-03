@@ -1,7 +1,19 @@
 import { createSlice } from '@reduxjs/toolkit';
 
+const sanitizeProfile = (profile) => {
+  if (!profile) return null;
+  return {
+    ...profile,
+    createdAt: profile.createdAt?.seconds
+      ? profile.createdAt.seconds
+      : typeof profile.createdAt === 'number'
+      ? profile.createdAt
+      : null,
+  };
+};
+
 const initialState = {
-  viewingProfile: null,   // Profile of another user being viewed
+  viewingProfile: null,
   isLoading: false,
   error: null,
 };
@@ -11,7 +23,8 @@ const profileSlice = createSlice({
   initialState,
   reducers: {
     setViewingProfile: (state, action) => {
-      state.viewingProfile = action.payload;
+      // ✅ Sanitize before storing
+      state.viewingProfile = sanitizeProfile(action.payload);
       state.isLoading = false;
     },
     setProfileLoading: (state, action) => {
@@ -21,8 +34,17 @@ const profileSlice = createSlice({
       state.error = action.payload;
       state.isLoading = false;
     },
+    clearViewingProfile: (state) => {
+      state.viewingProfile = null;
+    },
   },
 });
 
-export const { setViewingProfile, setProfileLoading, setProfileError } = profileSlice.actions;
+export const {
+  setViewingProfile,
+  setProfileLoading,
+  setProfileError,
+  clearViewingProfile,
+} = profileSlice.actions;
+
 export default profileSlice.reducer;

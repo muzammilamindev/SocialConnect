@@ -1,19 +1,35 @@
 export const colors = {
-    primary: '#4F46E5',       // Indigo
-    primaryLight: '#818CF8',
-    secondary: '#EC4899',     // Pink
-    background: '#F9FAFB',
-    surface: '#FFFFFF',
-    error: '#EF4444',
-    success: '#10B981',
-    warning: '#F59E0B',
-    text: {
-      primary: '#111827',
-      secondary: '#6B7280',
-      light: '#9CA3AF',
-      white: '#FFFFFF',
-    },
-    border: '#E5E7EB',
-    divider: '#F3F4F6',
-    like: '#EF4444',
-  };
+  primary: '#4F46E5',
+  primaryLight: '#818CF8',
+  primaryDark: '#3730A3',
+  secondary: '#EC4899',
+  secondaryLight: '#F9A8D4',
+  background: '#F9FAFB',
+  surface: '#FFFFFF',
+  surfaceElevated: '#FFFFFF',
+  error: '#EF4444',
+  errorLight: '#FEE2E2',
+  success: '#10B981',
+  successLight: '#D1FAE5',
+  warning: '#F59E0B',
+  warningLight: '#FEF3C7',
+  text: {
+    primary: '#111827',
+    secondary: '#6B7280',
+    light: '#9CA3AF',
+    white: '#FFFFFF',
+    placeholder: '#D1D5DB',
+  },
+  border: '#E5E7EB',
+  divider: '#F3F4F6',
+  like: '#EF4444',
+  overlay: 'rgba(0,0,0,0.5)',
+  // Gradient arrays for LinearGradient
+  gradients: {
+    primary: ['#4F46E5', '#7C3AED'],
+    secondary: ['#EC4899', '#F43F5E'],
+    sunset: ['#F59E0B', '#EF4444'],
+    ocean: ['#06B6D4', '#3B82F6'],
+    card: ['rgba(255,255,255,0)', 'rgba(255,255,255,1)'],
+  },
+};

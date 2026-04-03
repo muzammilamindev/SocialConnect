@@ -1,10 +1,15 @@
-import React, { useEffect, useCallback } from 'react'; 
+import React, { useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, ActivityIndicator,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-  setViewingProfile, setProfileLoading,
+  setViewingProfile,
+  setProfileLoading,
 } from '../../store/slices/profileSlice';
 import { fetchUserProfile } from '../../services/authService';
 import Avatar from '../../components/common/Avatar';
@@ -23,7 +28,7 @@ const UserProfileScreen = ({ route, navigation }) => {
       dispatch(setViewingProfile(result.profile));
       navigation.setOptions({ title: result.profile.name });
     }
-  }, [userId, dispatch, navigation]); // all values used inside are listed
+  }, [userId, dispatch, navigation]);
 
   useEffect(() => {
     loadProfile();
@@ -111,7 +116,9 @@ const styles = StyleSheet.create({
     fontWeight: fonts.weights.bold,
     color: colors.text.primary,
   },
-  statLabel: { fontSize: fonts.sizes.sm, color: colors.text.secondary },
+  statLabel: { 
+    fontSize: fonts.sizes.sm, 
+    color: colors.text.secondary },
 });
 
 export default UserProfileScreen;

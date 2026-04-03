@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { clearAuth } from '../../store/slices/authSlice';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { logout } from '../../services/authService';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
@@ -18,6 +19,7 @@ const SettingRow = ({ icon, label, onPress, destructive }) => (
 );
 
 const SettingsScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const { profile } = useSelector(state => state.auth);
 
@@ -36,7 +38,7 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <Text style={styles.sectionTitle}>Account</Text>
       <View style={styles.section}>
         <SettingRow
