@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { View, Text, StyleSheet } from 'react-native';
+import { useSelector } from 'react-redux';
 import HomeScreen from '../screens/main/HomeScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
@@ -10,6 +11,7 @@ import CommentsScreen from '../screens/main/CommentsScreen';
 import UserProfileScreen from '../screens/main/UserProfileScreen';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import ChatScreen from '../screens/main/ChatScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -25,7 +27,6 @@ const TabIcon = ({ emoji, label, focused }) => (
     <Text
       style={[
         styles.tabEmoji,
-        
         { fontFamily: 'System', includeFontPadding: false },
       ]}
     >
@@ -44,36 +45,48 @@ const TabIcon = ({ emoji, label, focused }) => (
   </View>
 );
 
-const BottomTabs = () => (
-  <Tab.Navigator
-    screenOptions={{
-      headerShown: false,
-      tabBarStyle: styles.tabBar,
-      tabBarShowLabel: false,
-    }}
-  >
-    {TABS.map(tab => (
-      <Tab.Screen
-        key={tab.name}
-        name={tab.name}
-        component={
-          tab.name === 'Home'
-            ? HomeScreen
-            : tab.name === 'Profile'
-            ? ProfileScreen
-            : SettingsScreen
-        }
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji={tab.emoji} label={tab.label} focused={focused} />
-          ),
-        }}
-      />
-    ))}
-  </Tab.Navigator>
-);
+// ✅ CHANGE: BottomTabs now reads uid from Redux and passes it to ProfileScreen
+const BottomTabs = () => {
+  // Pull the logged-in user's uid out of Redux auth state.
+  // This is the same `user` object that AppNavigator sets via onAuthStateChanged.
+  const uid = useSelector(state => state.auth.user?.uid);
 
-// Custom back button header
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: styles.tabBar,
+        tabBarShowLabel: false,
+      }}
+    >
+      {TABS.map(tab => (
+        <Tab.Screen
+          key={tab.name}
+          name={tab.name}
+          component={
+            tab.name === 'Home'
+              ? HomeScreen
+              : tab.name === 'Profile'
+              ? ProfileScreen
+              : SettingsScreen
+          }
+          // ✅ ADD THIS: Pass uid to ProfileScreen so it knows which profile to load.
+          // initialParams is only used if the screen doesn't already have params —
+          // it won't override anything if ProfileScreen is navigated to with params.
+          initialParams={tab.name === 'Profile' ? { uid } : undefined}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon emoji={tab.emoji} label={tab.label} focused={focused} />
+            ),
+          }}
+        />
+      ))}
+    </Tab.Navigator>
+  );
+};
+
+// ── Everything below this line is IDENTICAL to your existing code ──────────
+
 const screenOptions = {
   headerStyle: {
     backgroundColor: colors.surface,
@@ -88,7 +101,6 @@ const screenOptions = {
     fontSize: fonts.sizes.lg,
     color: colors.text.primary,
   },
-  // Smooth horizontal slide transition
   cardStyleInterpolator: ({ current, layouts }) => ({
     cardStyle: {
       transform: [
@@ -120,7 +132,6 @@ const MainNavigator = () => (
       options={{
         headerShown: false,
         presentation: 'modal',
-        // Modal slide-up transition
         cardStyleInterpolator: ({ current, layouts }) => ({
           cardStyle: {
             transform: [
@@ -144,6 +155,11 @@ const MainNavigator = () => (
       name="UserProfile"
       component={UserProfileScreen}
       options={{ title: 'Profile' }}
+    />
+    <Stack.Screen
+      name="Chat"
+      component={ChatScreen}
+      options={{ title: 'Chat' }}
     />
   </Stack.Navigator>
 );

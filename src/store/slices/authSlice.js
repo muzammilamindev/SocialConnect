@@ -28,26 +28,58 @@ const authSlice = createSlice({
       state.isLoading = false;
       state.error = null;
     },
+
     setProfile: (state, action) => {
-      // ✅ Always sanitize before storing
+      // Always sanitize before storing (Firestore Timestamps aren't serializable)
       state.profile = sanitizeProfile(action.payload);
     },
+
     setLoading: (state, action) => {
       state.isLoading = action.payload;
     },
+
     setError: (state, action) => {
       state.error = action.payload;
       state.isLoading = false;
     },
+
     clearAuth: (state) => {
       state.user = null;
       state.profile = null;
       state.error = null;
       state.isLoading = false;
     },
+
+    /**
+     * @param {string} payload.targetUserId  - UID of the user being followed/unfollowed
+     * @param {boolean} payload.isNowFollowing - true = add, false = remove
+     */
+    updateCurrentUserFollowing: (state, action) => {
+      if (!state.profile) return;
+
+      const { targetUserId, isNowFollowing } = action.payload;
+      const following = state.profile.following || [];
+
+      if (isNowFollowing) {
+        // Add targetUserId to following if not already present
+        if (!following.includes(targetUserId)) {
+          state.profile.following = [...following, targetUserId];
+        }
+      } else {
+        // Remove targetUserId from following
+        state.profile.following = following.filter(id => id !== targetUserId);
+      }
+    },
   },
 });
 
-export const { setUser, setProfile, setLoading, setError, clearAuth } =
-  authSlice.actions;
+export const {
+  setUser,
+  setProfile,
+  setLoading,
+  setError,
+  clearAuth,
+  updateCurrentUserFollowing,
+} = authSlice.actions;
+
 export default authSlice.reducer;

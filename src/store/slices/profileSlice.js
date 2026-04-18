@@ -23,19 +23,45 @@ const profileSlice = createSlice({
   initialState,
   reducers: {
     setViewingProfile: (state, action) => {
-      // ✅ Sanitize before storing
+      // Sanitize timestamps before storing in Redux (Firestore Timestamps aren't serializable)
       state.viewingProfile = sanitizeProfile(action.payload);
       state.isLoading = false;
     },
+
     setProfileLoading: (state, action) => {
       state.isLoading = action.payload;
     },
+
     setProfileError: (state, action) => {
       state.error = action.payload;
       state.isLoading = false;
     },
+
     clearViewingProfile: (state) => {
       state.viewingProfile = null;
+    },
+
+    /**
+     * @param {string} payload.currentUserId - The logged-in user's UID
+     * @param {boolean} payload.isNowFollowing - true = add, false = remove
+     */
+    updateViewingProfileFollow: (state, action) => {
+      if (!state.viewingProfile) return;
+
+      const { currentUserId, isNowFollowing } = action.payload;
+      const followers = state.viewingProfile.followers || [];
+
+      if (isNowFollowing) {
+        // Add currentUserId to followers if not already present
+        if (!followers.includes(currentUserId)) {
+          state.viewingProfile.followers = [...followers, currentUserId];
+        }
+      } else {
+        // Remove currentUserId from followers
+        state.viewingProfile.followers = followers.filter(
+          id => id !== currentUserId,
+        );
+      }
     },
   },
 });
@@ -45,6 +71,7 @@ export const {
   setProfileLoading,
   setProfileError,
   clearViewingProfile,
+  updateViewingProfileFollow,
 } = profileSlice.actions;
 
 export default profileSlice.reducer;

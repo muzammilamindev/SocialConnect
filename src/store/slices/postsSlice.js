@@ -52,13 +52,10 @@ const postsSlice = createSlice({
     },
 
     updatePost: (state, action) => {
-      const index = state.posts.findIndex(p => p.id === action.payload.id);
-      if (index !== -1) {
-        state.posts[index] = {
-          ...action.payload,
-
-          createdAt: state.posts[index].createdAt,
-        };
+      const { postId, text } = action.payload;
+      const target = state.posts.find(p => p.id === postId);
+      if (target) {
+        target.text = text;
       }
     },
 

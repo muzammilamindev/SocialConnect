@@ -8,10 +8,16 @@ import {
   Animated,
   Alert,
   Modal,
+  TextInput,
+  ActivityIndicator,
+  KeyboardAvoidingView, 
+  Platform,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { deletePost as deletePostFromStore } from '../../store/slices/postsSlice';
+import { updatePost as updatePostInStore } from '../../store/slices/postsSlice';
 import { deletePost } from '../../services/postService';
+import { updatePost } from '../../services/postService';
 import Avatar from '../common/Avatar';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
@@ -28,6 +34,11 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(post.text); 
+  const [isSaving, setIsSaving] = useState(false);
+
+
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const timeAgo = useTimeAgo(post.createdAt);
 
@@ -39,6 +50,12 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
       setLikeCount(post.likes?.length ?? 0);
     }
   }, [post.likes, profile?.uid, isTapping]);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditText(post.text);
+    }
+  }, [post.text, isEditing]);
 
   const handleLike = () => {
     setIsTapping(true);
@@ -77,7 +94,6 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
             setIsDeleting(true);
             const result = await deletePost(post.id);
             if (result.success) {
-              // Remove from Redux store immediately
               dispatch(deletePostFromStore(post.id));
             } else {
               setIsDeleting(false);
@@ -89,7 +105,43 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
     );
   };
 
-  // Don't render if being deleted
+  const handleEditPress = () => {
+    setMenuVisible(false);
+    setEditText(post.text); 
+    setIsEditing(true);
+  };
+ 
+  const handleSaveEdit = async () => {
+    const trimmed = editText.trim();
+
+    if (!trimmed) {
+      Alert.alert('Empty Post', 'Post content cannot be empty.');
+      return;
+    }
+
+    if (trimmed === post.text) {
+      setIsEditing(false);
+      return;
+    }
+
+    setIsSaving(true);
+    const result = await updatePost(post.id, trimmed);
+
+    if (result.success) {
+      dispatch(updatePostInStore({ postId: post.id, text: trimmed }));
+      setIsEditing(false);
+    } else {
+      Alert.alert('Error', result.error || 'Failed to update post');
+    }
+
+    setIsSaving(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditText(post.text); // restore original text
+    setIsEditing(false);
+  };
+
   if (isDeleting) return null;
 
   return (
@@ -108,7 +160,6 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
           </View>
         </TouchableOpacity>
 
-        {/* 3-dot menu — only shown to post owner */}
         {isOwner && (
           <TouchableOpacity
             style={styles.menuBtn}
@@ -120,8 +171,51 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
           </TouchableOpacity>
         )}
       </View>
+      
+      {isEditing ? (
 
-      {post.text ? <Text style={styles.text}>{post.text}</Text> : null}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <TextInput
+            style={styles.editInput}
+            value={editText}
+            onChangeText={setEditText}
+            multiline
+            autoFocus // keyboard pops up automatically
+            editable={!isSaving}
+            placeholder="What's on your mind?"
+            placeholderTextColor={colors.text.light}
+          />
+
+          <View style={styles.editActions}>
+            <TouchableOpacity
+              style={[styles.editBtn, styles.cancelBtn]}
+              onPress={handleCancelEdit}
+              disabled={isSaving}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.editBtn, styles.saveBtn]}
+              onPress={handleSaveEdit}
+              disabled={isSaving}
+              activeOpacity={0.7}
+            >
+              {isSaving ? (
+                <ActivityIndicator size="small" color={colors.surface} />
+              ) : (
+                <Text style={styles.saveBtnText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      ) : 
+      post.text ? (
+        <Text style={styles.text}>{post.text}</Text>
+      ) : null}
 
       {post.imageUrl ? (
         <Image
@@ -159,22 +253,30 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
         </TouchableOpacity>
       </View>
 
-      {/* Delete Menu Modal */}
+      {/* ── Bottom-sheet menu modal ── */}
       <Modal
         visible={menuVisible}
         transparent
         animationType="fade"
         onRequestClose={() => setMenuVisible(false)}
       >
-
         <TouchableOpacity
           style={styles.modalBackdrop}
           activeOpacity={1}
           onPress={() => setMenuVisible(false)}
         >
-          {/* Menu Card */}
           <View style={styles.menuCard}>
-            {/* Delete Option */}
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={handleEditPress}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.menuItemIcon}>✏️</Text>
+              <Text style={styles.menuItemTextEdit}>Edit Post</Text>
+            </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
             <TouchableOpacity
               style={styles.menuItem}
               onPress={handleDeletePress}
@@ -184,10 +286,8 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
               <Text style={styles.menuItemText}>Delete Post</Text>
             </TouchableOpacity>
 
-            {/* Divider */}
             <View style={styles.menuDivider} />
 
-      
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => setMenuVisible(false)}
@@ -217,7 +317,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 
-  // Header
+  // Header — UNCHANGED
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -255,7 +355,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
 
-  // Post Content
+  // Post content — UNCHANGED
   text: {
     fontSize: fonts.sizes.md,
     color: colors.text.primary,
@@ -270,6 +370,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
 
+  // Like / comment actions — UNCHANGED
   actions: {
     flexDirection: 'row',
     borderTopWidth: 1,
@@ -294,7 +395,7 @@ const styles = StyleSheet.create({
   },
   likedCount: { color: colors.like },
 
-
+  // Modal — UNCHANGED base styles
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -314,9 +415,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     gap: spacing.md,
   },
-  menuItemIcon: {
-    fontSize: 20,
-  },
+  menuItemIcon: { fontSize: 20 },
   menuItemText: {
     fontSize: fonts.sizes.md,
     fontWeight: fonts.weights.semiBold,
@@ -331,6 +430,57 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.border,
     marginHorizontal: spacing.md,
+  },
+
+  menuItemTextEdit: {
+    fontSize: fonts.sizes.md,
+    fontWeight: fonts.weights.semiBold,
+    color: colors.text.primary,
+  },
+  editInput: {
+    fontSize: fonts.sizes.md,
+    color: colors.text.primary,
+    lineHeight: 22,
+    borderWidth: 1.5,
+    borderColor: colors.primary, 
+    borderRadius: 10,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+    minHeight: 80, 
+    textAlignVertical: 'top',
+    backgroundColor: colors.background, 
+  },
+  editActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  editBtn: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: 8,
+    minWidth: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtn: {
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: 'transparent',
+  },
+  saveBtn: {
+    backgroundColor: colors.primary,
+  },
+  cancelBtnText: {
+    fontSize: fonts.sizes.sm,
+    fontWeight: fonts.weights.semiBold,
+    color: colors.text.secondary,
+  },
+  saveBtnText: {
+    fontSize: fonts.sizes.sm,
+    fontWeight: fonts.weights.semiBold,
+    color: colors.surface,
   },
 });
 

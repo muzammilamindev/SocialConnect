@@ -2,6 +2,23 @@ import firestore from '@react-native-firebase/firestore';
 import storage from '@react-native-firebase/storage';
 import { COLLECTIONS, STORAGE_PATHS } from '../utils/constants';
 
+/**
+ * Updates the text content of an existing post.
+ * @param {string} postId  - Firestore document ID of the post
+ * @param {string} newText - The new post text to save
+ */
+export const updatePost = async (postId, newText) => {
+  try {
+    await firestore().collection('posts').doc(postId).update({
+      text: newText,
+      updatedAt: firestore.FieldValue.serverTimestamp(),
+    });
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
 export const createPost = async (
   userId,
   userName,
