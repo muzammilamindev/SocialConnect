@@ -112,6 +112,11 @@ src/
 ├── services/        # Firebase & API calls
 └── utils/           # Helper functions
 
+## 🐛 Known Issues
+- Image posts from debug/development mode 
+  may not appear in release build feed
+- iOS build not tested (Windows development machine)
+
 ## 👤 Author
 **Muhammad Muzamil Amin**  
 GitHub: [@muzammilamindev](https://github.com/muzammilamindev)
