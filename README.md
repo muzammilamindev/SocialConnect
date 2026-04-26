@@ -16,9 +16,10 @@
 | <img src="./src/assets/screenshots/home.png" width="200"/> | <img src="./src/assets/screenshots/search.png" width="200"/> | <img src="./src/assets/screenshots/profile.png" width="200"/> |
 
 ### Social Features
-| Messages | User Profile | Settings |
-|----------|--------------|----------|
-| <img src="./src/assets/screenshots/messages.png" width="200"/> | <img src="./src/assets/screenshots/userprofile.png" width="200"/> | <img src="./src/assets/screenshots/settings.png" width="200"/> |
+| Messages | Comments | User Profile | Settings |
+|----------|----------|--------------|----------|
+| <img src="./src/assets/screenshots/messages.png" width="200"/> | | <img src="./src/assets/screenshots/comments.png" width="200"/> |
+| <img src="./src/assets/screenshots/userprofile.png" width="200"/> | <img src="./src/assets/screenshots/settings.png" width="200"/> |
 
 ## 🎥 Video Demo
 [Watch Demo Here](https://drive.google.com/file/d/1BQc_0bilNRTyx7mzaQVlAOGoCx8zbwtU/view?usp=sharing)
