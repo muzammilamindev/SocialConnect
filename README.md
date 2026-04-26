@@ -1,5 +1,5 @@
-# Social Connect📱
-"A social media app built with React Native."
+# SocialConnect 📱
+> A full-stack social media app built with React Native, Firebase & Redux — featuring real-time messaging, posts, and user interactions.
 
 ---
 
