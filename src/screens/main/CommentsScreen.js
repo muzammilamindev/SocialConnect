@@ -12,7 +12,8 @@ import {
   Modal,
   Animated,
 } from 'react-native';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';          // ← added useDispatch
+import { updateCommentsCount } from '../../store/slices/postsSlice'; // ← added
 import { addComment, deleteComment } from '../../services/postService';
 import { subscribeToComments } from '../../services/realtimeService';
 import { saveNotificationToFirestore } from '../../services/notificationService';
@@ -161,6 +162,7 @@ function DeleteMenu({ visible, onDelete, onCancel }) {
 const CommentsScreen = ({ route, navigation }) => {
   const { post } = route.params;
   const { profile } = useSelector(state => state.auth);
+  const dispatch = useDispatch();                                // ← added
 
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState('');
@@ -174,6 +176,16 @@ const CommentsScreen = ({ route, navigation }) => {
   useEffect(() => {
     navigation.setOptions({
       title: comments.length > 0 ? `Comments (${comments.length})` : 'Comments',
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{ paddingHorizontal: spacing.md }}
+        >
+          <Text style={{ fontSize: 28, color: 'black', lineHeight: 32 }}>
+            {'‹  '}
+          </Text>
+        </TouchableOpacity>
+      ),
     });
   }, [comments.length, navigation]);
 
@@ -192,6 +204,12 @@ const CommentsScreen = ({ route, navigation }) => {
     );
     return () => unsubscribe();
   }, [post.id]);
+
+  // ── Sync commentsCount back to Redux so the feed card updates ──
+  useEffect(() => {
+    if (isLoading) return; // don't dispatch until real data has loaded
+    dispatch(updateCommentsCount({ postId: post.id, count: comments.length }));
+  }, [comments.length, isLoading, post.id, dispatch]);           // ← added
 
   // Send comment
   const handleSend = useCallback(async () => {

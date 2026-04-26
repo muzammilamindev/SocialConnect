@@ -1,6 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 
-const sanitizeProfile = (profile) => {
+const sanitizeProfile = profile => {
   if (!profile) return null;
   return {
     ...profile,
@@ -23,7 +23,6 @@ const profileSlice = createSlice({
   initialState,
   reducers: {
     setViewingProfile: (state, action) => {
-      // Sanitize timestamps before storing in Redux (Firestore Timestamps aren't serializable)
       state.viewingProfile = sanitizeProfile(action.payload);
       state.isLoading = false;
     },
@@ -37,13 +36,13 @@ const profileSlice = createSlice({
       state.isLoading = false;
     },
 
-    clearViewingProfile: (state) => {
+    clearViewingProfile: state => {
       state.viewingProfile = null;
     },
 
     /**
-     * @param {string} payload.currentUserId - The logged-in user's UID
-     * @param {boolean} payload.isNowFollowing - true = add, false = remove
+     * @param {string} payload.currentUserId
+     * @param {boolean} payload.isNowFollowing
      */
     updateViewingProfileFollow: (state, action) => {
       if (!state.viewingProfile) return;
@@ -52,12 +51,10 @@ const profileSlice = createSlice({
       const followers = state.viewingProfile.followers || [];
 
       if (isNowFollowing) {
-        // Add currentUserId to followers if not already present
         if (!followers.includes(currentUserId)) {
           state.viewingProfile.followers = [...followers, currentUserId];
         }
       } else {
-        // Remove currentUserId from followers
         state.viewingProfile.followers = followers.filter(
           id => id !== currentUserId,
         );

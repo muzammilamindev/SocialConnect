@@ -1,6 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 
-const sanitizeProfile = (profile) => {
+const sanitizeProfile = profile => {
   if (!profile) return null;
   return {
     ...profile,
@@ -30,7 +30,6 @@ const authSlice = createSlice({
     },
 
     setProfile: (state, action) => {
-      // Always sanitize before storing (Firestore Timestamps aren't serializable)
       state.profile = sanitizeProfile(action.payload);
     },
 
@@ -43,7 +42,7 @@ const authSlice = createSlice({
       state.isLoading = false;
     },
 
-    clearAuth: (state) => {
+    clearAuth: state => {
       state.user = null;
       state.profile = null;
       state.error = null;
@@ -51,8 +50,8 @@ const authSlice = createSlice({
     },
 
     /**
-     * @param {string} payload.targetUserId  - UID of the user being followed/unfollowed
-     * @param {boolean} payload.isNowFollowing - true = add, false = remove
+     * @param {string} payload.targetUserId
+     * @param {boolean} payload.isNowFollowing
      */
     updateCurrentUserFollowing: (state, action) => {
       if (!state.profile) return;
@@ -61,12 +60,10 @@ const authSlice = createSlice({
       const following = state.profile.following || [];
 
       if (isNowFollowing) {
-        // Add targetUserId to following if not already present
         if (!following.includes(targetUserId)) {
           state.profile.following = [...following, targetUserId];
         }
       } else {
-        // Remove targetUserId from following
         state.profile.following = following.filter(id => id !== targetUserId);
       }
     },

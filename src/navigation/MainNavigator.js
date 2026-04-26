@@ -12,12 +12,14 @@ import UserProfileScreen from '../screens/main/UserProfileScreen';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import ChatScreen from '../screens/main/ChatScreen';
+import SearchScreen from '../screens/main/SearchScreen';
+import PostDetailScreen from '../screens/main/PostDetailScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
-
 const TABS = [
   { name: 'Home', emoji: '🏠', label: 'Feed' },
+  { name: 'Search', emoji: '🔍', label: 'Search' },
   { name: 'Profile', emoji: '👤', label: 'Profile' },
   { name: 'Settings', emoji: '⚙️', label: 'Settings' },
 ];
@@ -45,10 +47,14 @@ const TabIcon = ({ emoji, label, focused }) => (
   </View>
 );
 
-// ✅ CHANGE: BottomTabs now reads uid from Redux and passes it to ProfileScreen
+const TAB_COMPONENTS = {
+  Home: HomeScreen,
+  Search: SearchScreen,
+  Profile: ProfileScreen,
+  Settings: SettingsScreen,
+};
+
 const BottomTabs = () => {
-  // Pull the logged-in user's uid out of Redux auth state.
-  // This is the same `user` object that AppNavigator sets via onAuthStateChanged.
   const uid = useSelector(state => state.auth.user?.uid);
 
   return (
@@ -63,16 +69,7 @@ const BottomTabs = () => {
         <Tab.Screen
           key={tab.name}
           name={tab.name}
-          component={
-            tab.name === 'Home'
-              ? HomeScreen
-              : tab.name === 'Profile'
-              ? ProfileScreen
-              : SettingsScreen
-          }
-          // ✅ ADD THIS: Pass uid to ProfileScreen so it knows which profile to load.
-          // initialParams is only used if the screen doesn't already have params —
-          // it won't override anything if ProfileScreen is navigated to with params.
+          component={TAB_COMPONENTS[tab.name]}
           initialParams={tab.name === 'Profile' ? { uid } : undefined}
           options={{
             tabBarIcon: ({ focused }) => (
@@ -84,8 +81,6 @@ const BottomTabs = () => {
     </Tab.Navigator>
   );
 };
-
-// ── Everything below this line is IDENTICAL to your existing code ──────────
 
 const screenOptions = {
   headerStyle: {
@@ -160,6 +155,11 @@ const MainNavigator = () => (
       name="Chat"
       component={ChatScreen}
       options={{ title: 'Chat' }}
+    />
+    <Stack.Screen
+      name="PostDetail"
+      component={PostDetailScreen}
+      options={{ title: 'Post', headerBackTitleVisible: false }}
     />
   </Stack.Navigator>
 );

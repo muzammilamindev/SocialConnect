@@ -1,5 +1,12 @@
 import React, { useEffect, useRef } from 'react';
-import { Text, StyleSheet, Animated, Easing } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  Easing,
+  StatusBar,
+} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
@@ -10,6 +17,7 @@ const SplashScreen = ({ onFinish }) => {
   const titleOpacity = useRef(new Animated.Value(0)).current;
   const titleSlide = useRef(new Animated.Value(30)).current;
   const taglineOpacity = useRef(new Animated.Value(0)).current;
+  const brandOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.sequence([
@@ -40,11 +48,18 @@ const SplashScreen = ({ onFinish }) => {
           useNativeDriver: true,
         }),
       ]),
-      Animated.timing(taglineOpacity, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
+      Animated.parallel([
+        Animated.timing(taglineOpacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(brandOpacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]),
       Animated.delay(800),
       Animated.parallel([
         Animated.timing(logoOpacity, {
@@ -62,54 +77,58 @@ const SplashScreen = ({ onFinish }) => {
           duration: 300,
           useNativeDriver: true,
         }),
+        Animated.timing(brandOpacity, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
       ]),
     ]).start(() => onFinish?.());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <LinearGradient
-      colors={colors.gradients.primary}
-      style={styles.container}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
-      {/* Logo Circle */}
-      <Animated.View
-        style={[
-          styles.logoContainer,
-          {
-            opacity: logoOpacity,
-            transform: [{ scale: logoScale }],
-          },
-        ]}
+    <>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="transparent"
+        translucent
+      />
+      <LinearGradient
+        colors={['#7B6FE8', '#5B50D6', '#4338CA']}
+        style={styles.container}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
       >
-        <Text style={styles.logoEmoji}>🌐</Text>
-      </Animated.View>
+        <View style={styles.circleLarge} />
+        <View style={styles.circleSmall} />
 
-      {/* App Name */}
-      <Animated.Text
-        style={[
-          styles.title,
-          {
-            opacity: titleOpacity,
-            transform: [{ translateY: titleSlide }],
-          },
-        ]}
-      >
-        Social Connect
-      </Animated.Text>
+        <Animated.View
+          style={[
+            styles.logoContainer,
+            { opacity: logoOpacity, transform: [{ scale: logoScale }] },
+          ]}
+        >
+          <Text style={styles.logoEmoji}>🌐</Text>
+        </Animated.View>
+        <Animated.Text
+          style={[
+            styles.title,
+            { opacity: titleOpacity, transform: [{ translateY: titleSlide }] },
+          ]}
+        >
+          Social Connect
+        </Animated.Text>
 
-      {/* Tagline */}
-      <Animated.Text style={[styles.tagline, { opacity: taglineOpacity }]}>
-        Connect · Share · Discover
-      </Animated.Text>
+        <Animated.Text style={[styles.tagline, { opacity: taglineOpacity }]}>
+          Connect · Share · Discover
+        </Animated.Text>
 
-      {/* Bottom branding */}
-      <Animated.Text style={[styles.brand, { opacity: taglineOpacity }]}>
-        DevelopersHub
-      </Animated.Text>
-    </LinearGradient>
+        <Animated.Text style={[styles.brand, { opacity: brandOpacity }]}>
+          DevelopersHub
+        </Animated.Text>
+      </LinearGradient>
+    </>
   );
 };
 
@@ -118,6 +137,24 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  circleLarge: {
+    position: 'absolute',
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    top: -80,
+    right: -80,
+  },
+  circleSmall: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    bottom: -40,
+    left: -60,
   },
   logoContainer: {
     width: 100,
@@ -133,27 +170,29 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 12,
   },
-  logoEmoji: { fontSize: 52 },
+  logoEmoji: {
+    fontSize: 52,
+  },
   title: {
-    fontSize: fonts.sizes.display,
-    fontWeight: fonts.weights.black,
-    color: colors.text.white,
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#FFFFFF',
     letterSpacing: -0.5,
     marginBottom: 8,
   },
   tagline: {
-    fontSize: fonts.sizes.md,
+    fontSize: 13,
     color: 'rgba(255,255,255,0.8)',
-    letterSpacing: 2,
+    letterSpacing: 2.5,
     textTransform: 'uppercase',
-    fontWeight: fonts.weights.medium,
+    fontWeight: '500',
   },
   brand: {
     position: 'absolute',
     bottom: 48,
-    fontSize: fonts.sizes.sm,
-    color: 'rgba(255,255,255,0.6)',
-    fontWeight: fonts.weights.semiBold,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.55)',
+    fontWeight: '600',
     letterSpacing: 1,
   },
 });

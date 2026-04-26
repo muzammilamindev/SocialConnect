@@ -7,8 +7,8 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { useDispatch, useSelector } from 'react-redux';
@@ -25,8 +25,6 @@ import Input from '../../components/common/Input';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { spacing } from '../../theme/spacing';
-import { scaleH } from '../../theme/responsive';
-
 const validationSchema = Yup.object({
   name: Yup.string()
     .min(2, 'Name is too short')
@@ -41,7 +39,6 @@ const validationSchema = Yup.object({
     .oneOf([Yup.ref('password')], 'Passwords do not match')
     .required('Please confirm your password'),
 });
-
 const SignUpScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const { isLoading } = useSelector(state => state.auth);
@@ -84,25 +81,30 @@ const SignUpScreen = ({ navigation }) => {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={styles.keyboardView}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Gradient Header */}
-        <LinearGradient
-          colors={colors.gradients.secondary}
-          style={styles.gradientHeader}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.headerEmoji}>✨</Text>
-          <Text style={styles.headerTitle}>Create Account</Text>
-          <Text style={styles.headerSubtitle}>Join the community today</Text>
-        </LinearGradient>
+        <View style={styles.topBar}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Page Title */}
+        <View style={styles.titleBlock}>
+          <Text style={styles.pageTitle}>Create Account</Text>
+          <Text style={styles.pageSubtitle}>Join Social Connect today!</Text>
+        </View>
 
         {/* Form Card */}
         <View style={styles.card}>
@@ -115,27 +117,34 @@ const SignUpScreen = ({ navigation }) => {
             error={formik.touched.name && formik.errors.name}
             autoCapitalize="words"
           />
+
+          {/* Email */}
           <Input
-            label="Email Address"
-            placeholder="you@example.com"
+            label="Email"
+            placeholder="john.doe@email.com"
             value={formik.values.email}
             onChangeText={formik.handleChange('email')}
             onBlur={formik.handleBlur('email')}
             error={formik.touched.email && formik.errors.email}
             keyboardType="email-address"
+            autoCapitalize="none"
           />
+
+          {/* Password */}
           <Input
             label="Password"
-            placeholder="At least 6 characters"
+            placeholder="••••••••••"
             value={formik.values.password}
             onChangeText={formik.handleChange('password')}
             onBlur={formik.handleBlur('password')}
             error={formik.touched.password && formik.errors.password}
             secureTextEntry
           />
+
+          {/* Confirm Password */}
           <Input
             label="Confirm Password"
-            placeholder="Re-enter your password"
+            placeholder="••••••••••"
             value={formik.values.confirmPassword}
             onChangeText={formik.handleChange('confirmPassword')}
             onBlur={formik.handleBlur('confirmPassword')}
@@ -144,25 +153,18 @@ const SignUpScreen = ({ navigation }) => {
             }
             secureTextEntry
           />
-
-          <View style={styles.termsRow}>
-            <Text style={styles.termsText}>
-              By signing up you agree to our{' '}
-              <Text style={styles.termsLink}>Terms of Service</Text> and{' '}
-              <Text style={styles.termsLink}>Privacy Policy</Text>
-            </Text>
+          <View style={styles.buttonWrapper}>
+            <Button
+              title="Create Account"
+              onPress={formik.handleSubmit}
+              isLoading={isLoading}
+            />
           </View>
-
-          <Button
-            title="Create Account"
-            onPress={formik.handleSubmit}
-            isLoading={isLoading}
-          />
-
+          {/* Login Footer */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>Already have an account? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text style={styles.signInLink}>Sign In</Text>
+              <Text style={styles.loginLink}>Login</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -172,62 +174,92 @@ const SignUpScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  scroll: { flexGrow: 1, backgroundColor: colors.background },
-  gradientHeader: {
-    height: scaleH(220),
+  keyboardView: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  scroll: {
+    flexGrow: 1,
+    backgroundColor: '#FFFFFF',
+    paddingBottom: 40,
+  },
+
+  // ── Top Bar ──
+  topBar: {
+    paddingTop: 56,
+    paddingHorizontal: 24,
+    paddingBottom: 8,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
   },
-  headerEmoji: { fontSize: 44, marginBottom: 8 },
-  headerTitle: {
-    fontSize: fonts.sizes.xxl,
-    fontWeight: fonts.weights.black,
-    color: colors.text.white,
+  backIcon: {
+    fontSize: 20,
+    color: '#1A1A2E',
+    fontWeight: '600',
+    lineHeight: 22,
   },
-  headerSubtitle: {
-    fontSize: fonts.sizes.sm,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
+
+  // ── Title Block ──
+  titleBlock: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 24,
   },
+  pageTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#1A1A2E',
+    letterSpacing: -0.3,
+    marginBottom: 4,
+  },
+  pageSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '400',
+  },
+
+  // ── Form Card ──
   card: {
-    margin: spacing.md,
-    marginTop: -20,
-    backgroundColor: colors.surface,
+    marginHorizontal: 24,
+    backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    padding: spacing.lg,
+    padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 24,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
-  termsRow: {
-    marginBottom: spacing.md,
-    marginTop: -spacing.xs,
+
+  // ── Button ──
+  buttonWrapper: {
+    marginTop: 8,
+    marginBottom: 4,
   },
-  termsText: {
-    fontSize: fonts.sizes.xs,
-    color: colors.text.secondary,
-    lineHeight: 18,
-    textAlign: 'center',
-  },
-  termsLink: {
-    color: colors.primary,
-    fontWeight: fonts.weights.semiBold,
-  },
+
+  // ── Footer ──
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: spacing.md,
+    paddingTop: 20,
   },
-  footerText: { color: colors.text.secondary, fontSize: fonts.sizes.md },
-  signInLink: {
-    color: colors.primary,
-    fontSize: fonts.sizes.md,
-    fontWeight: fonts.weights.bold,
+  footerText: {
+    color: '#6B7280',
+    fontSize: 14,
+  },
+  loginLink: {
+    color: '#5B50D6',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
 

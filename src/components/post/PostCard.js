@@ -10,7 +10,7 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
-  KeyboardAvoidingView, 
+  KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
@@ -35,9 +35,8 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
-  const [editText, setEditText] = useState(post.text); 
+  const [editText, setEditText] = useState(post.text);
   const [isSaving, setIsSaving] = useState(false);
-
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const timeAgo = useTimeAgo(post.createdAt);
@@ -107,10 +106,10 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
 
   const handleEditPress = () => {
     setMenuVisible(false);
-    setEditText(post.text); 
+    setEditText(post.text);
     setIsEditing(true);
   };
- 
+
   const handleSaveEdit = async () => {
     const trimmed = editText.trim();
 
@@ -153,7 +152,11 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
           onPress={() => onUserPress?.(post.userId)}
           activeOpacity={0.8}
         >
-          <Avatar uri={post.userAvatar} name={post.userName} size={44} />
+          <Avatar
+            uri={isOwner ? profile?.profilePicture : post.userAvatar}
+            name={post.userName}
+            size={44}
+          />
           <View style={styles.userInfo}>
             <Text style={styles.userName}>{post.userName}</Text>
             <Text style={styles.time}>{timeAgo}</Text>
@@ -171,9 +174,8 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
           </TouchableOpacity>
         )}
       </View>
-      
-      {isEditing ? (
 
+      {isEditing ? (
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
@@ -212,8 +214,7 @@ function PostCard({ post, onLike, onComment, onUserPress }) {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
-      ) : 
-      post.text ? (
+      ) : post.text ? (
         <Text style={styles.text}>{post.text}</Text>
       ) : null}
 
@@ -355,7 +356,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
 
-  // Post content — UNCHANGED
   text: {
     fontSize: fonts.sizes.md,
     color: colors.text.primary,
@@ -370,7 +370,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
 
-  // Like / comment actions — UNCHANGED
   actions: {
     flexDirection: 'row',
     borderTopWidth: 1,
@@ -395,7 +394,6 @@ const styles = StyleSheet.create({
   },
   likedCount: { color: colors.like },
 
-  // Modal — UNCHANGED base styles
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -442,13 +440,13 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     lineHeight: 22,
     borderWidth: 1.5,
-    borderColor: colors.primary, 
+    borderColor: colors.primary,
     borderRadius: 10,
     padding: spacing.sm,
     marginBottom: spacing.sm,
-    minHeight: 80, 
+    minHeight: 80,
     textAlignVertical: 'top',
-    backgroundColor: colors.background, 
+    backgroundColor: colors.background,
   },
   editActions: {
     flexDirection: 'row',

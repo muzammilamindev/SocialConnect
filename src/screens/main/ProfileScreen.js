@@ -1,21 +1,27 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Alert,
-  Animated,
+  Modal,
+  Pressable,
+  ScrollView,
+  Image,
+  Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useDispatch, useSelector } from 'react-redux';
-import { PermissionsAndroid } from 'react-native';
-import { Platform } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
-import storage from '@react-native-firebase/storage';
+import auth from '@react-native-firebase/auth';
 import { setProfile, clearAuth } from '../../store/slices/authSlice';
-import { updateUserProfile, logout } from '../../services/authService';
-import { STORAGE_PATHS } from '../../utils/constants';
+import {
+  updateUserProfile,
+  logout,
+  fetchUserProfile,
+} from '../../services/authService';
 import { showGlobalToast } from '../../hooks/useToast';
 import { formatCount } from '../../utils/helpers';
 import Avatar from '../../components/common/Avatar';
@@ -24,37 +30,120 @@ import Input from '../../components/common/Input';
 import { colors } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { spacing } from '../../theme/spacing';
-import { scaleH } from '../../theme/responsive';
 
-const ProfileScreen = () => {
+const PRIMARY = '#5B50D6';
+const BG = '#F5F5F5';
+const SURFACE = '#FFFFFF';
+const TEXT_PRIMARY = '#1A1A2E';
+const TEXT_SECONDARY = '#6B7280';
+const BORDER = '#E5E7EB';
+const { width: SCREEN_W } = Dimensions.get('window');
+const POST_SIZE = Math.floor((SCREEN_W - 4) / 3);
+
+const ProfileScreen = ({ navigation, route }) => {
   const dispatch = useDispatch();
-  const { profile } = useSelector(state => state.auth);
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const { profile: loggedInProfile } = useSelector(state => state.auth);
+
+  const targetUserId = route?.params?.userId;
+  const isOwnProfile = !targetUserId || targetUserId === loggedInProfile?.uid;
+
+  const [viewedProfile, setViewedProfile] = useState(
+    isOwnProfile ? loggedInProfile : null,
+  );
+  const [isLoadingProfile, setIsLoadingProfile] = useState(!isOwnProfile);
+
+  const profile = isOwnProfile ? loggedInProfile : viewedProfile;
+
+  const effectiveUserId = isOwnProfile ? loggedInProfile?.uid : targetUserId;
+
+  const userPosts = useSelector(state =>
+    (state.posts.posts || []).filter(p => p.userId === effectiveUserId),
+  );
+
+  useEffect(() => {
+    if (isOwnProfile) return;
+    let cancelled = false;
+    const load = async () => {
+      setIsLoadingProfile(true);
+      const result = await fetchUserProfile(targetUserId);
+      if (cancelled) return;
+      if (result.success) {
+        setViewedProfile(result.profile);
+      } else {
+        showGlobalToast('Could not load profile', 'error');
+      }
+      setIsLoadingProfile(false);
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [targetUserId, isOwnProfile]);
 
   const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState(profile?.name || '');
-  const [bio, setBio] = useState(profile?.bio || '');
+  const [name, setName] = useState(loggedInProfile?.name || '');
+  const [bio, setBio] = useState(loggedInProfile?.bio || '');
   const [isSaving, setIsSaving] = useState(false);
-  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoSheetVisible, setPhotoSheetVisible] = useState(false);
+  const [pendingPhotoBase64, setPendingPhotoBase64] = useState(null);
+  const [activeTab, setActiveTab] = useState('posts');
 
-  // Animated header collapse
-  const headerHeight = scrollY.interpolate({
-    inputRange: [0, 120],
-    outputRange: [scaleH(220), scaleH(100)],
-    extrapolate: 'clamp',
-  });
+  const openPhotoSheet = useCallback(() => setPhotoSheetVisible(true), []);
+  const closePhotoSheet = useCallback(() => setPhotoSheetVisible(false), []);
 
-  const avatarScale = scrollY.interpolate({
-    inputRange: [0, 100],
-    outputRange: [1, 0.65],
-    extrapolate: 'clamp',
-  });
+  const handleChoosePhoto = useCallback(() => {
+    closePhotoSheet();
+    setTimeout(() => {
+      launchImageLibrary(
+        {
+          mediaType: 'photo',
+          quality: 0.3,
+          maxWidth: 300,
+          maxHeight: 300,
+          includeBase64: true,
+        },
+        response => {
+          if (response.didCancel || response.errorCode) return;
+          const asset = response.assets?.[0];
+          if (!asset?.base64) {
+            showGlobalToast('Could not read image. Try another.', 'error');
+            return;
+          }
+          const dataUri = `data:${asset.type || 'image/jpeg'};base64,${
+            asset.base64
+          }`;
+          if (dataUri.length > 700_000) {
+            showGlobalToast(
+              'Image too large. Please pick a smaller one.',
+              'warning',
+            );
+            return;
+          }
+          setPendingPhotoBase64(dataUri);
+          if (!isEditing) setIsEditing(true);
+        },
+      );
+    }, 300);
+  }, [isEditing, closePhotoSheet]);
 
-  const nameOpacity = scrollY.interpolate({
-    inputRange: [80, 120],
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  });
+  const handleDeletePhoto = useCallback(() => {
+    closePhotoSheet();
+    Alert.alert(
+      'Remove Photo',
+      'Are you sure you want to remove your profile picture?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            setPendingPhotoBase64('__DELETED__');
+            if (!isEditing) setIsEditing(true);
+          },
+        },
+      ],
+    );
+  }, [isEditing, closePhotoSheet]);
 
   const handleSave = useCallback(async () => {
     if (!name.trim()) {
@@ -62,95 +151,51 @@ const ProfileScreen = () => {
       return;
     }
     setIsSaving(true);
-    const result = await updateUserProfile(profile.uid, {
-      name: name.trim(),
-      bio: bio.trim(),
-    });
-    setIsSaving(false);
-    if (result.success) {
-      dispatch(setProfile({ ...profile, name: name.trim(), bio: bio.trim() }));
-      setIsEditing(false);
-      showGlobalToast('Profile updated! ✨', 'success');
-    } else {
-      showGlobalToast(result.error, 'error');
-    }
-  }, [name, bio, profile, dispatch]);
+    try {
+      const finalPhotoURL =
+        pendingPhotoBase64 === '__DELETED__'
+          ? null
+          : pendingPhotoBase64 || (loggedInProfile.profilePicture ?? null);
 
-  const handlePickPhoto = useCallback(async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const androidVersion = Platform.Version;
-        const permission =
-          androidVersion >= 33
-            ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
-            : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
+      const result = await updateUserProfile(loggedInProfile.uid, {
+        name: name.trim(),
+        bio: bio.trim(),
+        profilePicture: finalPhotoURL,
+      });
 
-        const granted = await PermissionsAndroid.request(permission, {
-          title: 'Photo Access',
-          message: 'Social Connect needs access to your photos.',
-          buttonPositive: 'Allow',
-          buttonNegative: 'Deny',
-        });
-
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          Alert.alert(
-            'Permission Required',
-            'Please allow photo access in Settings.',
-          );
-          return;
-        }
-      } catch (err) {
-        console.warn('Permission error:', err);
+      if (!result.success) {
+        showGlobalToast(result.error || 'Failed to save profile', 'error');
+        return;
       }
+
+      try {
+        await auth().currentUser?.updateProfile({ displayName: name.trim() });
+      } catch (e) {
+        console.warn('[ProfileScreen] Auth sync skipped:', e.message);
+      }
+
+      dispatch(
+        setProfile({
+          ...loggedInProfile,
+          name: name.trim(),
+          bio: bio.trim(),
+          profilePicture: finalPhotoURL,
+        }),
+      );
+      setPendingPhotoBase64(null);
+      setIsEditing(false);
+      showGlobalToast(
+        pendingPhotoBase64 === '__DELETED__'
+          ? 'Profile picture removed.'
+          : 'Profile updated! ✨',
+        'success',
+      );
+    } catch (err) {
+      showGlobalToast('Something went wrong. Please try again.', 'error');
+    } finally {
+      setIsSaving(false);
     }
-
-    launchImageLibrary(
-      {
-        mediaType: 'photo',
-        quality: 0.7,
-        maxWidth: 800,
-        maxHeight: 800,
-      },
-      async response => {
-        if (response.didCancel || response.errorCode) return;
-
-        const asset = response.assets?.[0];
-        if (!asset?.uri) return;
-
-        setIsUploadingPhoto(true);
-
-        try {
-          const uri =
-            Platform.OS === 'android'
-              ? asset.uri
-              : asset.uri.replace('file://', '');
-
-          const filename = `profile_${profile.uid}_${Date.now()}`;
-          const storageRef = storage().ref(
-            `${STORAGE_PATHS.PROFILE_PICTURES}/${filename}`,
-          );
-
-          await storageRef.putFile(uri);
-
-          const url = await storageRef.getDownloadURL();
-
-          await updateUserProfile(profile.uid, { profilePicture: url });
-
-          dispatch(setProfile({ ...profile, profilePicture: url }));
-
-          Alert.alert('Success ✅', 'Profile photo updated!');
-        } catch (uploadErr) {
-          console.warn('Photo upload error:', uploadErr);
-          Alert.alert(
-            'Upload Failed',
-            `Could not upload photo: ${uploadErr.message}`,
-          );
-        } finally {
-          setIsUploadingPhoto(false);
-        }
-      },
-    );
-  }, [profile, dispatch]);
+  }, [name, bio, pendingPhotoBase64, loggedInProfile, dispatch]);
 
   const handleLogout = useCallback(() => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -166,306 +211,848 @@ const ProfileScreen = () => {
     ]);
   }, [dispatch]);
 
+  const displayPhotoUri =
+    pendingPhotoBase64 === '__DELETED__'
+      ? null
+      : pendingPhotoBase64 || profile?.profilePicture;
+
+  const hasPhoto =
+    pendingPhotoBase64 !== '__DELETED__' &&
+    (pendingPhotoBase64 || profile?.profilePicture);
+
+  if (isLoadingProfile) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={PRIMARY} />
+      </View>
+    );
+  }
   return (
-    <View style={styles.container}>
-      {/* Animated Gradient Header */}
-      <Animated.View style={[styles.headerWrapper, { height: headerHeight }]}>
-        <LinearGradient
-          colors={colors.gradients.primary}
-          style={styles.gradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+    <View style={styles.root}>
+      {isOwnProfile && (
+        <Modal
+          visible={photoSheetVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={closePhotoSheet}
         >
-          <Animated.View
-            style={[
-              styles.avatarWrapper,
-              { transform: [{ scale: avatarScale }] },
-            ]}
-          >
-            <TouchableOpacity
-              onPress={handlePickPhoto}
-              disabled={isUploadingPhoto}
-            >
-              <Avatar
-                uri={profile?.profilePicture}
-                name={profile?.name}
-                size={80}
-              />
-              <View style={styles.cameraOverlay}>
-                <Text style={styles.cameraEmoji}>
-                  {isUploadingPhoto ? '⏳' : '📷'}
-                </Text>
+          <Pressable style={styles.sheetBackdrop} onPress={closePhotoSheet}>
+            <Pressable style={styles.sheet} onPress={() => {}}>
+              <View style={styles.sheetHandle} />
+
+              <View style={styles.sheetAvatarRow}>
+                <Avatar uri={displayPhotoUri} name={profile?.name} size={64} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sheetName}>{profile?.name}</Text>
+                  <Text style={styles.sheetSub}>Profile photo</Text>
+                </View>
               </View>
+
+              <View style={styles.sheetDivider} />
+
+              <TouchableOpacity
+                style={styles.sheetOption}
+                onPress={handleChoosePhoto}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.sheetIconWrap,
+                    { backgroundColor: PRIMARY + '18' },
+                  ]}
+                >
+                  <Text style={styles.sheetEmoji}>🖼️</Text>
+                </View>
+                <Text style={styles.sheetOptionLabel}>Choose photo</Text>
+              </TouchableOpacity>
+
+              {hasPhoto && (
+                <TouchableOpacity
+                  style={styles.sheetOption}
+                  onPress={handleDeletePhoto}
+                  activeOpacity={0.7}
+                >
+                  <View
+                    style={[
+                      styles.sheetIconWrap,
+                      { backgroundColor: '#FEE2E2' },
+                    ]}
+                  >
+                    <Text style={styles.sheetEmoji}>🗑️</Text>
+                  </View>
+                  <Text style={[styles.sheetOptionLabel, { color: '#EF4444' }]}>
+                    Delete photo
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={[styles.sheetOption, { marginTop: 4 }]}
+                onPress={closePhotoSheet}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.sheetIconWrap, { backgroundColor: BG }]}>
+                  <Text style={styles.sheetEmoji}>✕</Text>
+                </View>
+                <Text
+                  style={[styles.sheetOptionLabel, { color: TEXT_SECONDARY }]}
+                >
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
+      {/* Edit Profile modal (own profile only) */}
+      {isOwnProfile && (
+        <Modal
+          visible={isEditing}
+          transparent
+          animationType="slide"
+          onRequestClose={() => {
+            setIsEditing(false);
+            setPendingPhotoBase64(null);
+            setName(loggedInProfile?.name || '');
+            setBio(loggedInProfile?.bio || '');
+          }}
+        >
+          <View style={styles.editModalOverlay}>
+            <View style={styles.editModal}>
+              <View style={styles.editModalHeader}>
+                <Text style={styles.editModalTitle}>Edit Profile</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setIsEditing(false);
+                    setPendingPhotoBase64(null);
+                    setName(loggedInProfile?.name || '');
+                    setBio(loggedInProfile?.bio || '');
+                  }}
+                >
+                  <Text style={styles.editModalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.editAvatarRow}>
+                <TouchableOpacity
+                  onPress={openPhotoSheet}
+                  activeOpacity={0.8}
+                  style={styles.editAvatarWrap}
+                >
+                  <Avatar
+                    uri={displayPhotoUri}
+                    name={loggedInProfile?.name}
+                    size={72}
+                  />
+                  <View style={styles.editAvatarBadge}>
+                    <Text style={{ fontSize: 12 }}>✏️</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {pendingPhotoBase64 === '__DELETED__' && (
+                <View style={[styles.photoBanner, styles.photoBannerDanger]}>
+                  <Text style={[styles.photoBannerText, { color: '#EF4444' }]}>
+                    🗑️ Photo will be removed — tap Save to confirm
+                  </Text>
+                </View>
+              )}
+              {pendingPhotoBase64 && pendingPhotoBase64 !== '__DELETED__' && (
+                <View style={styles.photoBanner}>
+                  <Text style={styles.photoBannerText}>
+                    📸 New photo selected — tap Save to apply
+                  </Text>
+                </View>
+              )}
+
+              <Input
+                label="Full Name"
+                value={name}
+                onChangeText={setName}
+                autoCapitalize="words"
+                editable={!isSaving}
+              />
+              <Input
+                label="Bio"
+                value={bio}
+                onChangeText={setBio}
+                placeholder="Tell people about yourself..."
+                multiline
+                editable={!isSaving}
+              />
+
+              <View style={styles.editActions}>
+                <Button
+                  title="Cancel"
+                  variant="outline"
+                  onPress={() => {
+                    setIsEditing(false);
+                    setPendingPhotoBase64(null);
+                    setName(loggedInProfile?.name || '');
+                    setBio(loggedInProfile?.bio || '');
+                  }}
+                  style={styles.editCancelBtn}
+                  disabled={isSaving}
+                />
+                <Button
+                  title="Save"
+                  onPress={handleSave}
+                  isLoading={isSaving}
+                  style={styles.editSaveBtn}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+        <View style={styles.topBar}>
+          {!isOwnProfile ? (
+            <TouchableOpacity
+              onPress={() => navigation?.goBack()}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.backArrow}>←</Text>
             </TouchableOpacity>
-          </Animated.View>
+          ) : (
+            <View style={{ width: 28 }} />
+          )}
 
-          <Animated.View style={{ opacity: nameOpacity, alignItems: 'center' }}>
-            <Text style={styles.headerName}>{profile?.name}</Text>
-            <Text style={styles.headerEmail}>{profile?.email}</Text>
-          </Animated.View>
-        </LinearGradient>
-      </Animated.View>
+          <Text style={styles.topBarTitle}>
+            {isOwnProfile
+              ? 'Profile'
+              : profile?.username || profile?.name || 'Profile'}
+          </Text>
 
-      {/* Scrollable Content */}
-      <Animated.ScrollView
-        style={styles.scroll}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false },
-        )}
-        scrollEventThrottle={16}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Stats */}
-        <View style={styles.statsCard}>
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>
-              {formatCount(profile?.followers?.length || 0)}
-            </Text>
-            <Text style={styles.statLabel}>Followers</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>
-              {formatCount(profile?.following?.length || 0)}
-            </Text>
-            <Text style={styles.statLabel}>Following</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Posts</Text>
-          </View>
+          {isOwnProfile ? (
+            <TouchableOpacity
+              onPress={handleLogout}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={{ width: 28, alignItems: 'center' }}
+            >
+              <Text style={styles.menuDots}>⋮</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 28 }} />
+          )}
         </View>
 
-        {/* Bio Section */}
-        {!isEditing ? (
-          <View style={styles.bioCard}>
-            <View style={styles.bioHeader}>
-              <Text style={styles.bioTitle}>About</Text>
-              <TouchableOpacity
-                onPress={() => setIsEditing(true)}
-                style={styles.editBtn}
+        {/* Profile header card */}
+        <View style={styles.profileCard}>
+          <View style={styles.profileRow}>
+            <TouchableOpacity
+              onPress={isOwnProfile ? openPhotoSheet : undefined}
+              activeOpacity={isOwnProfile ? 0.85 : 1}
+              style={styles.avatarWrap}
+            >
+              <Avatar uri={displayPhotoUri} name={profile?.name} size={80} />
+              {isOwnProfile && pendingPhotoBase64 && (
+                <View style={styles.pendingBadge}>
+                  <Text style={{ fontSize: 10 }}>
+                    {pendingPhotoBase64 === '__DELETED__' ? '🚫' : '✅'}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <Text style={styles.statNum}>
+                  {formatCount(userPosts.length)}
+                </Text>
+                <Text style={styles.statLbl}>Posts</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statNum}>
+                  {formatCount(profile?.followers?.length || 0)}
+                </Text>
+                <Text style={styles.statLbl}>Followers</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statNum}>
+                  {formatCount(profile?.following?.length || 0)}
+                </Text>
+                <Text style={styles.statLbl}>Following</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.metaBlock}>
+            <View style={styles.nameRow}>
+              <Text style={styles.displayName}>
+                {profile?.name || 'Unknown User'}
+              </Text>
+              <View style={styles.verifiedBadge}>
+                <Text style={styles.verifiedCheck}>✓</Text>
+              </View>
+            </View>
+            <Text style={styles.handle}>
+              @
+              {profile?.username || profile?.email?.split('@')[0] || 'username'}
+            </Text>
+            {profile?.bio ? (
+              <Text style={styles.bioText}>{profile.bio}</Text>
+            ) : (
+              <Text
+                style={[
+                  styles.bioText,
+                  { color: TEXT_SECONDARY, fontStyle: 'italic' },
+                ]}
               >
-                <Text style={styles.editBtnText}>Edit ✏️</Text>
+                {isOwnProfile
+                  ? 'No bio yet. Tap Edit Profile to add one.'
+                  : 'No bio.'}
+              </Text>
+            )}
+          </View>
+
+          {isOwnProfile ? (
+            <TouchableOpacity
+              style={styles.editProfileBtn}
+              onPress={() => setIsEditing(true)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.editProfileBtnText}>Edit Profile</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.followRow}>
+              <TouchableOpacity style={styles.followBtn} activeOpacity={0.85}>
+                <Text style={styles.followBtnText}>Follow</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.messageBtn} activeOpacity={0.85}>
+                <Text style={styles.messageBtnText}>Message</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.bioText}>
-              {profile?.bio || 'No bio yet. Tap Edit to add one.'}
+          )}
+        </View>
+
+        <View style={styles.tabRow}>
+          <TouchableOpacity
+            style={[
+              styles.tabItem,
+              activeTab === 'posts' && styles.tabItemActive,
+            ]}
+            onPress={() => setActiveTab('posts')}
+          >
+            <Text
+              style={[
+                styles.tabIcon,
+                activeTab === 'posts' && styles.tabIconActive,
+              ]}
+            >
+              ⊞
             </Text>
-          </View>
-        ) : (
-          <View style={styles.editCard}>
-            <Text style={styles.editCardTitle}>Edit Profile</Text>
-            <Input
-              label="Full Name"
-              value={name}
-              onChangeText={setName}
-              autoCapitalize="words"
-            />
-            <Input
-              label="Bio"
-              value={bio}
-              onChangeText={setBio}
-              placeholder="Tell people about yourself..."
-              multiline
-            />
-            <View style={styles.editActions}>
-              <Button
-                title="Cancel"
-                variant="outline"
-                onPress={() => {
-                  setIsEditing(false);
-                  setName(profile?.name || '');
-                  setBio(profile?.bio || '');
-                }}
-                style={{ flex: 1, marginRight: spacing.sm }}
-              />
-              <Button
-                title="Save"
-                onPress={handleSave}
-                isLoading={isSaving}
-                style={{ flex: 1 }}
-              />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tabItem,
+              activeTab === 'saved' && styles.tabItemActive,
+            ]}
+            onPress={() => setActiveTab('saved')}
+          >
+            <Text
+              style={[
+                styles.tabIcon,
+                activeTab === 'saved' && styles.tabIconActive,
+              ]}
+            >
+              🔖
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tabItem,
+              activeTab === 'tagged' && styles.tabItemActive,
+            ]}
+            onPress={() => setActiveTab('tagged')}
+          >
+            <Text
+              style={[
+                styles.tabIcon,
+                activeTab === 'tagged' && styles.tabIconActive,
+              ]}
+            >
+              🏷️
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {activeTab === 'posts' &&
+          (userPosts.length > 0 ? (
+            <View style={styles.postsGrid}>
+              {userPosts.map((item, index) => {
+                const imageUri =
+                  item.imageUrl || item.media || item.image || item.uri || null;
+                return (
+                  <TouchableOpacity
+                    key={item.id || index}
+                    activeOpacity={0.85}
+                    style={styles.postCell}
+                  >
+                    {imageUri ? (
+                      <Image
+                        source={{ uri: imageUri }}
+                        style={styles.postImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.textPostCell}>
+                        <Text style={styles.textPostPreview} numberOfLines={4}>
+                          {item.text || item.caption || ''}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>📷</Text>
+              <Text style={styles.emptyTitle}>No Posts Yet</Text>
+              <Text style={styles.emptySubtitle}>
+                {isOwnProfile
+                  ? 'Share your first moment!'
+                  : 'No posts here yet.'}
+              </Text>
+            </View>
+          ))}
+
+        {activeTab === 'saved' && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>🔖</Text>
+            <Text style={styles.emptyTitle}>No Saved Posts</Text>
+            <Text style={styles.emptySubtitle}>
+              Posts you save will appear here.
+            </Text>
           </View>
         )}
 
-        {/* Account Info */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoLabel}>Email</Text>
-          <Text style={styles.infoValue}>{profile?.email}</Text>
-        </View>
-
-        {/* Danger Zone */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutText}>🚪 Logout</Text>
-        </TouchableOpacity>
+        {activeTab === 'tagged' && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>🏷️</Text>
+            <Text style={styles.emptyTitle}>No Tagged Posts</Text>
+            <Text style={styles.emptySubtitle}>
+              Posts you're tagged in will appear here.
+            </Text>
+          </View>
+        )}
 
         <View style={{ height: 40 }} />
-      </Animated.ScrollView>
+      </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  headerWrapper: { overflow: 'hidden' },
-  gradient: {
+  root: {
+    flex: 1,
+    backgroundColor: SURFACE,
+  },
+  scroll: {
+    flex: 1,
+    backgroundColor: SURFACE,
+  },
+  loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
-    gap: spacing.sm,
+    backgroundColor: SURFACE,
   },
-  avatarWrapper: { position: 'relative' },
-  cameraOverlay: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    backgroundColor: colors.surface,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
+  topBar: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 8,
+    marginTop: 5,
+    backgroundColor: SURFACE,
+  },
+  topBarTitle: {
+    paddingTop: 10,
+    fontSize: 20,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
+    letterSpacing: -0.3,
+  },
+  menuDots: {
+    fontSize: 24,
+    color: TEXT_PRIMARY,
+    lineHeight: 28,
+  },
+  backArrow: {
+    fontSize: 22,
+    color: TEXT_PRIMARY,
+    fontWeight: '600',
+  },
+  profileCard: {
+    backgroundColor: SURFACE,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  avatarWrap: {
+    position: 'relative',
+    marginRight: 20,
+  },
+  pendingBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: SURFACE,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
-  cameraEmoji: { fontSize: 14 },
-  headerName: {
-    fontSize: fonts.sizes.lg,
-    fontWeight: fonts.weights.bold,
-    color: colors.text.white,
-  },
-  headerEmail: {
-    fontSize: fonts.sizes.xs,
-    color: 'rgba(255,255,255,0.75)',
-    marginTop: 2,
-  },
-  scroll: { flex: 1 },
-  statsCard: {
+
+  // stats
+  statsRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    margin: spacing.md,
-    borderRadius: 20,
-    padding: spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    justifyContent: 'space-around',
   },
-  stat: { flex: 1, alignItems: 'center' },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
   statDivider: {
     width: 1,
-    height: 36,
-    backgroundColor: colors.border,
+    height: 30,
+    backgroundColor: BORDER,
   },
-  statNumber: {
-    fontSize: fonts.sizes.xl,
-    fontWeight: fonts.weights.bold,
-    color: colors.text.primary,
+  statNum: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
+    letterSpacing: -0.3,
   },
-  statLabel: {
-    fontSize: fonts.sizes.xs,
-    color: colors.text.secondary,
+  statLbl: {
+    fontSize: 12,
+    color: TEXT_SECONDARY,
     marginTop: 2,
+    fontWeight: '500',
   },
-  bioCard: {
-    backgroundColor: colors.surface,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    borderRadius: 20,
-    padding: spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+
+  // name / handle / bio
+  metaBlock: {
+    marginBottom: 14,
   },
-  bioHeader: {
+  nameRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    gap: 6,
+    marginBottom: 2,
   },
-  bioTitle: {
-    fontSize: fonts.sizes.md,
-    fontWeight: fonts.weights.semiBold,
-    color: colors.text.primary,
+  displayName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
   },
-  editBtn: {
-    backgroundColor: colors.background,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 8,
+  verifiedBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  editBtnText: {
-    color: colors.primary,
-    fontSize: fonts.sizes.sm,
-    fontWeight: fonts.weights.semiBold,
+  verifiedCheck: {
+    fontSize: 10,
+    color: '#fff',
+    fontWeight: '800',
+  },
+  handle: {
+    fontSize: 13,
+    color: TEXT_SECONDARY,
+    marginBottom: 8,
   },
   bioText: {
-    fontSize: fonts.sizes.md,
-    color: colors.text.secondary,
-    lineHeight: 22,
+    fontSize: 14,
+    color: TEXT_PRIMARY,
+    lineHeight: 20,
   },
-  editCard: {
-    backgroundColor: colors.surface,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    borderRadius: 20,
-    padding: spacing.md,
-    elevation: 2,
+
+  // Edit Profile button
+  editProfileBtn: {
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    borderRadius: 10,
+    paddingVertical: 9,
+    alignItems: 'center',
+    backgroundColor: SURFACE,
   },
-  editCardTitle: {
-    fontSize: fonts.sizes.lg,
-    fontWeight: fonts.weights.bold,
-    color: colors.text.primary,
-    marginBottom: spacing.md,
+  editProfileBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: TEXT_PRIMARY,
+    letterSpacing: 0.1,
+  },
+  followRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  followBtn: {
+    flex: 1,
+    backgroundColor: PRIMARY,
+    borderRadius: 10,
+    paddingVertical: 9,
+    alignItems: 'center',
+  },
+  followBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.1,
+  },
+  messageBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    borderRadius: 10,
+    paddingVertical: 9,
+    alignItems: 'center',
+    backgroundColor: SURFACE,
+  },
+  messageBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: TEXT_PRIMARY,
+    letterSpacing: 0.1,
+  },
+  tabRow: {
+    flexDirection: 'row',
+    backgroundColor: SURFACE,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: BORDER,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabItemActive: {
+    borderBottomColor: PRIMARY,
+  },
+  tabIcon: {
+    fontSize: 20,
+    color: TEXT_SECONDARY,
+  },
+  tabIconActive: {
+    color: PRIMARY,
+  },
+
+  postsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 2,
+    backgroundColor: BG,
+  },
+  postCell: {
+    width: POST_SIZE,
+    height: POST_SIZE,
+  },
+  postImage: {
+    width: '100%',
+    height: '100%',
+  },
+  textPostCell: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: PRIMARY + '12',
+    padding: 8,
+    justifyContent: 'center',
+  },
+  textPostPreview: {
+    fontSize: 11,
+    color: TEXT_PRIMARY,
+    lineHeight: 15,
+  },
+
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 32,
+    backgroundColor: SURFACE,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: TEXT_SECONDARY,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: SURFACE,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 36,
+    paddingTop: 10,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: BORDER,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  sheetAvatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  sheetName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
+  },
+  sheetSub: {
+    fontSize: 13,
+    color: TEXT_SECONDARY,
+    marginTop: 2,
+  },
+  sheetDivider: {
+    height: 1,
+    backgroundColor: BORDER,
+    marginBottom: 10,
+  },
+  sheetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderRadius: 14,
+  },
+  sheetIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetEmoji: { fontSize: 20 },
+  sheetOptionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: TEXT_PRIMARY,
+  },
+
+  editModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  editModal: {
+    backgroundColor: SURFACE,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    paddingTop: 16,
+    maxHeight: '90%',
+  },
+  editModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  editModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
+  },
+  editModalClose: {
+    fontSize: 18,
+    color: TEXT_SECONDARY,
+    paddingHorizontal: 4,
+  },
+  editAvatarRow: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  editAvatarWrap: {
+    position: 'relative',
+  },
+  editAvatarBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: PRIMARY,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: SURFACE,
+  },
+  photoBanner: {
+    backgroundColor: PRIMARY + '18',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: PRIMARY,
+  },
+  photoBannerDanger: {
+    backgroundColor: '#FEE2E2',
+    borderLeftColor: '#EF4444',
+  },
+  photoBannerText: {
+    fontSize: 13,
+    color: PRIMARY,
+    fontWeight: '500',
   },
   editActions: {
     flexDirection: 'row',
-    marginTop: spacing.sm,
+    marginTop: 16,
+    gap: 12,
   },
-  infoCard: {
-    backgroundColor: colors.surface,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    borderRadius: 20,
-    padding: spacing.md,
-    elevation: 2,
+  editCancelBtn: {
+    flex: 1,
   },
-  infoLabel: {
-    fontSize: fonts.sizes.xs,
-    color: colors.text.light,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 4,
-    fontWeight: fonts.weights.semiBold,
-  },
-  infoValue: {
-    fontSize: fonts.sizes.md,
-    color: colors.text.primary,
-  },
-  logoutBtn: {
-    marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
-    backgroundColor: colors.errorLight,
-    borderRadius: 20,
-    padding: spacing.md,
-    alignItems: 'center',
-  },
-  logoutText: {
-    color: colors.error,
-    fontSize: fonts.sizes.md,
-    fontWeight: fonts.weights.semiBold,
+  editSaveBtn: {
+    flex: 1,
   },
 });
 

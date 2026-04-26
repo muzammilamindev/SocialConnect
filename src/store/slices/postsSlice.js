@@ -13,33 +13,33 @@ const postsSlice = createSlice({
   reducers: {
     setPosts: (state, action) => {
       const incomingPosts = action.payload;
+      const localPostsToKeep = state.posts.filter(p => {
+        if (!p.id.startsWith('local_')) return false;
 
-      state.posts = incomingPosts.map(incomingPost => {
-        const existingPost = state.posts.find(p => p.id === incomingPost.id);
-
-        if (existingPost) {
-          return {
-            ...incomingPost,
-            createdAt: existingPost.createdAt?.seconds
-              ? existingPost.createdAt
-              : incomingPost.createdAt,
-          };
-        }
-
-        return incomingPost;
-      });
-      state.posts = state.posts.filter(p => {
-        if (!p.id.startsWith('local_')) return true;
-
-        return !incomingPosts.find(
+        const hasRealMatch = incomingPosts.some(
           rp =>
             rp.userId === p.userId &&
             Math.abs(
               (rp.createdAt?.seconds || 0) - (p.createdAt?.seconds || 0),
             ) < 30,
         );
+
+        return !hasRealMatch;
       });
 
+      const realPosts = incomingPosts.map(incomingPost => {
+        const existingPost = state.posts.find(p => p.id === incomingPost.id);
+        if (existingPost?.createdAt?.seconds) {
+          return { ...incomingPost, createdAt: existingPost.createdAt };
+        }
+        return incomingPost;
+      });
+      const merged = [...localPostsToKeep, ...realPosts];
+      merged.sort(
+        (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
+      );
+
+      state.posts = merged;
       state.isLoading = false;
     },
 
@@ -87,6 +87,13 @@ const postsSlice = createSlice({
       state.error = action.payload;
       state.isLoading = false;
     },
+    updateCommentsCount: (state, action) => {
+      const { postId, count } = action.payload;
+      const post = state.posts.find(p => p.id === postId);
+      if (post) {
+        post.commentsCount = count;
+      }
+    },
   },
 });
 
@@ -99,6 +106,7 @@ export const {
   setPostsLoading,
   setCreating,
   setPostsError,
+  updateCommentsCount,
 } = postsSlice.actions;
 
 export default postsSlice.reducer;

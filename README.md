@@ -1,97 +1,117 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Social Connect📱
+"A social media app built with React Native."
 
-# Getting Started
+---
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## 📸 Screenshots
 
-## Step 1: Start Metro
+### Onboarding
+| Splash Screen | Sign In | Sign Up |
+|--------------|---------|---------|
+| <img src="./src/assets/screenshots/splash.png" width="200"/> | <img src="./src/assets/screenshots/signin.png" width="200"/> | <img src="./src/assets/screenshots/signup.png" width="200"/> |
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+### Core Features
+| Home Feed | Search | Profile |
+|-----------|--------|---------|
+| <img src="./src/assets/screenshots/home.png" width="200"/> | <img src="./src/assets/screenshots/search.png" width="200"/> | <img src="./src/assets/screenshots/profile.png" width="200"/> |
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+### Social Features
+| Messages | User Profile | Settings |
+|----------|--------------|----------|
+| <img src="./src/assets/screenshots/messages.png" width="200"/> | <img src="./src/assets/screenshots/userprofile.png" width="200"/> | <img src="./src/assets/screenshots/settings.png" width="200"/> |
 
-```sh
-# Using npm
-npm start
+## 🎥 Video Demo
+[Watch Demo Here](https://drive.google.com/file/d/1BQc_0bilNRTyx7mzaQVlAOGoCx8zbwtU/view?usp=sharing)
 
-# OR using Yarn
-yarn start
-```
+---
 
-## Step 2: Build and run your app
+## ✨ Features
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+- 🔐 **Authentication** — Sign up, log in, and secure session persistence
+- 👤 **User Profile** — View and edit profile info, avatar, and bio
+- 📝 **Posts** — Create, view, and delete posts with image support
+- ❤️ **Likes** — Like and unlike posts with real-time count updates
+- 💬 **Comments** — Add and view comments on posts
+- 👥 **Follow / Unfollow** — Follow other users and manage your feed
+- 📰 **Feed** — Personalized feed based on who you follow
+- 📨 **Real-time Messaging** — One-on-one chat powered by Firestore
+- 🔔 **Push Notifications** — In-app and background notifications via FCM
+- 🌐 **Offline Awareness** — Network status detection with graceful fallback
+
+---
+
+## 🛠 Tech Stack
+
+- **Framework:** React Native 0.84.1 (CLI) with TypeScript
+- **Backend & Services:** Firebase (Auth, Firestore, Cloudinary, Messaging)
+- **Navigation:** React Navigation v7 (Native Stack, Bottom Tabs, Stack)
+- **State Management:** Redux Toolkit + React Redux + Redux Persist
+- **UI & Animations:** Lottie, React Native Reanimated, Linear Gradient, Vector Icons
+- **Forms & Validation:** Formik + Yup
+- **Notifications:** Firebase Cloud Messaging
+- **Media:** React Native Image Picker
+- **Utilities:** AsyncStorage, NetInfo, Day.js, React Native UUID, Responsive Dimensions
+---
+
+## ⚙️ Getting Started
+
+### Prerequisites
+Make sure you have the following installed:
+- Node.js >= 18
+- React Native CLI
+- Android Studio (for Android)
+- Xcode (for iOS — Mac only)
+
+### Install dependencies
+npm install
+
+### iOS only — install pods (Mac only)
+cd ios && pod install && cd ..
+
+---
+
+## ▶️ Running the App
 
 ### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
-```
+npx react-native run-android
 
 ### iOS
+npx react-native run-ios
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+### Environment Setup
+Create a `.env` file in the root directory:
+```env
+# Firebase
+FIREBASE_API_KEY=your_api_key_here
+FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
+FIREBASE_PROJECT_ID=your_project_id_here
+FIREBASE_STORAGE_BUCKET=your_project_id.appspot.com
+FIREBASE_MESSAGING_SENDER_ID=your_sender_id_here
+FIREBASE_APP_ID=your_app_id_here
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+# Cloudinary
+CLOUDINARY_CLOUD_NAME=your_cloud_name_here
+CLOUDINARY_UPLOAD_PRESET=your_upload_preset_here
 ```
 
-Then, and every time you update your native dependencies, run:
+## 📦 Build for Production
 
-```sh
-bundle exec pod install
+### Android APK
+```bash
+cd android
+./gradlew assembleRelease
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+## 📁 Project Structure
+src/
+├── assets/          # Images, screenshots, animations
+├── components/      # Reusable UI components
+├── navigation/      # React Navigation setup
+├── screens/         # App screens
+├── store/           # Redux Toolkit slices & store
+├── services/        # Firebase & API calls
+└── utils/           # Helper functions
 
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
-```
-
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+## 👤 Author
+**Muhammad Muzamil Amin**  
+GitHub: [@muzammilamindev](https://github.com/muzammilamindev)

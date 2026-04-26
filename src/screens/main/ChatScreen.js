@@ -4,67 +4,64 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   FlatList,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   SafeAreaView,
+  Modal,
+  Animated,
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-/**
- * Produces a deterministic chat document ID from two UIDs.
- * Sorting alphabetically guarantees uid_A + uid_B and uid_B + uid_A
- * always resolve to the exact same Firestore document.
- */
 const getChatId = (uid1, uid2) => [uid1, uid2].sort().join('_');
 
-// ─── Component ──────────────────────────────────────────────────────────────
-
 const ChatScreen = ({ route, navigation }) => {
-  // otherUser is passed from UserProfileScreen: { uid, displayName }
   const { otherUser } = route.params;
-
-  // The currently signed-in user
   const currentUser = auth().currentUser;
-
-  // Stable chat document ID shared by both participants
   const chatId = getChatId(currentUser.uid, otherUser.uid);
 
-  // Live list of message objects from Firestore
   const [messages, setMessages] = useState([]);
-
-  // Controlled value for the text input
   const [inputText, setInputText] = useState('');
-
-  // True while the initial snapshot is loading
   const [loading, setLoading] = useState(true);
+  const [selectedMessage, setSelectedMessage] = useState(null);
 
-  // Ref to the FlatList so we can call scrollToEnd imperatively
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
   const flatListRef = useRef(null);
 
-  // ── Set the navigation header title to the other person's name ────────────
   useEffect(() => {
-    navigation.setOptions({ title: otherUser.displayName ?? 'Chat' });
+    navigation.setOptions({
+      title: otherUser.displayName ?? 'Chat',
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{ marginLeft: Platform.OS === 'android' ? 8 : 4, padding: 6 }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={{ color: 'black', fontSize: 28, fontWeight: '600' }}>
+            {'‹  '}
+          </Text>
+        </TouchableOpacity>
+      ),
+    });
   }, [navigation, otherUser.displayName]);
 
-  // ── Real-time Firestore listener ──────────────────────────────────────────
+  // Real-time Firestore listener
   useEffect(() => {
     const messagesRef = firestore()
       .collection('chats')
       .doc(chatId)
       .collection('messages')
-      .orderBy('createdAt', 'asc'); // oldest → newest so FlatList reads top→bottom
+      .orderBy('createdAt', 'asc');
 
     const unsubscribe = messagesRef.onSnapshot(
       snapshot => {
         const fetched = snapshot.docs.map(doc => ({
-          id: doc.id,       // Firestore auto-generated message ID
-          ...doc.data(),    // senderId, text, createdAt
+          id: doc.id,
+          ...doc.data(),
         }));
         setMessages(fetched);
         setLoading(false);
@@ -75,83 +72,124 @@ const ChatScreen = ({ route, navigation }) => {
       },
     );
 
-    // Clean up the listener when the screen unmounts
     return () => unsubscribe();
   }, [chatId]);
 
-  // ── Auto-scroll whenever the message list grows ───────────────────────────
   useEffect(() => {
     if (messages.length > 0) {
-      // Small timeout lets the FlatList finish its layout pass before scrolling
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
   }, [messages]);
 
-  // ── Send a message ────────────────────────────────────────────────────────
+  const openDeleteModal = message => {
+    if (message.senderId !== currentUser.uid) return;
+    setSelectedMessage(message);
+    scaleAnim.setValue(0.85);
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 20,
+      bounciness: 6,
+    }).start();
+  };
+
+  const closeDeleteModal = () => setSelectedMessage(null);
+
+  const handleDelete = async () => {
+    if (!selectedMessage) return;
+    const messageToDelete = selectedMessage;
+
+    setMessages(prev => prev.filter(m => m.id !== messageToDelete.id));
+    setSelectedMessage(null);
+
+    try {
+      await firestore()
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .doc(messageToDelete.id)
+        .delete();
+    } catch (error) {
+      console.error('Failed to delete message:', error);
+      // 2. Restore the message if Firestore deletion failed
+      setMessages(prev =>
+        [...prev, messageToDelete].sort((a, b) => {
+          const aTime = a.createdAt?.seconds ?? 0;
+          const bTime = b.createdAt?.seconds ?? 0;
+          return aTime - bTime;
+        }),
+      );
+    }
+  };
+
+  // Send a message
   const handleSend = async () => {
     const text = inputText.trim();
-    if (!text) return; // ignore empty sends
+    if (!text) return;
 
-    // Clear the input immediately for a snappy UX feel
     setInputText('');
 
     try {
       const chatDocRef = firestore().collection('chats').doc(chatId);
 
-      // Ensure the parent chat document exists (upsert with merge so we never
-      // overwrite an existing doc, but create it on first message)
       await chatDocRef.set(
         {
           participants: [currentUser.uid, otherUser.uid],
           lastMessage: text,
           lastMessageAt: firestore.FieldValue.serverTimestamp(),
         },
-        { merge: true }, // non-destructive — safe to call every time
+        { merge: true },
       );
 
-      // Add the message to the subcollection
       await chatDocRef.collection('messages').add({
         senderId: currentUser.uid,
         text,
-        createdAt: firestore.FieldValue.serverTimestamp(), // server-side timestamp for reliable ordering
+        createdAt: firestore.FieldValue.serverTimestamp(),
       });
     } catch (error) {
       console.error('Failed to send message:', error);
-      // Restore the text so the user doesn't lose their message on failure
       setInputText(text);
     }
   };
 
-  // ── Render a single message bubble ───────────────────────────────────────
   const renderMessage = ({ item }) => {
     const isMine = item.senderId === currentUser.uid;
 
     return (
-      <View
-        style={[
-          styles.messageBubble,
-          isMine ? styles.myBubble : styles.theirBubble,
-        ]}
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onLongPress={() => openDeleteModal(item)}
+        delayLongPress={350}
       >
-        <Text style={[styles.messageText, isMine ? styles.myText : styles.theirText]}>
-          {item.text}
-        </Text>
-        {/* Show a human-readable timestamp if the server has written it yet */}
-        {item.createdAt?.toDate && (
-          <Text style={styles.timestamp}>
-            {item.createdAt.toDate().toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+        <View
+          style={[
+            styles.messageBubble,
+            isMine ? styles.myBubble : styles.theirBubble,
+          ]}
+        >
+          <Text
+            style={[
+              styles.messageText,
+              isMine ? styles.myText : styles.theirText,
+            ]}
+          >
+            {item.text}
           </Text>
-        )}
-      </View>
+          {item.createdAt?.toDate && (
+            <Text style={[styles.timestamp, !isMine && styles.theirTimestamp]}>
+              {item.createdAt.toDate().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </Text>
+          )}
+        </View>
+      </TouchableOpacity>
     );
   };
 
-  // ── Loading state ─────────────────────────────────────────────────────────
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -160,38 +198,29 @@ const ChatScreen = ({ route, navigation }) => {
     );
   }
 
-  // ── Main render ───────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container}>
-      {/*
-        KeyboardAvoidingView pushes the input bar above the soft keyboard.
-        'padding' works well on iOS; 'height' is more reliable on Android.
-      */}
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 56}
       >
-        {/* ── Message list ── */}
+        {/* Message list */}
         <FlatList
           ref={flatListRef}
           data={messages}
           keyExtractor={item => item.id}
           renderItem={renderMessage}
           contentContainerStyle={styles.messageList}
-          // Show a hint when no messages have been sent yet
           ListEmptyComponent={
-            <Text style={styles.emptyText}>
-              No messages yet. Say hello! 👋
-            </Text>
+            <Text style={styles.emptyText}>No messages yet. Say hello! 👋</Text>
           }
-          // Keep the list pinned to the bottom as new items arrive
           onContentSizeChange={() =>
             flatListRef.current?.scrollToEnd({ animated: false })
           }
         />
 
-        {/* ── Input bar ── */}
+        {/* Input bar */}
         <View style={styles.inputBar}>
           <TextInput
             style={styles.textInput}
@@ -199,14 +228,13 @@ const ChatScreen = ({ route, navigation }) => {
             onChangeText={setInputText}
             placeholder="Type a message…"
             placeholderTextColor="#999"
-            multiline           // lets the input grow for longer messages
+            multiline
             maxLength={1000}
             returnKeyType="default"
           />
           <TouchableOpacity
             style={[
               styles.sendButton,
-              // Dim the button visually when there's nothing to send
               !inputText.trim() && styles.sendButtonDisabled,
             ]}
             onPress={handleSend}
@@ -216,11 +244,55 @@ const ChatScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Delete confirmation modal */}
+      <Modal
+        visible={!!selectedMessage}
+        transparent
+        animationType="fade"
+        onRequestClose={closeDeleteModal}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={closeDeleteModal}>
+          <View style={styles.modalBackdrop} />
+        </TouchableWithoutFeedback>
+
+        {/* Animated card */}
+        <View style={styles.modalWrapper} pointerEvents="box-none">
+          <Animated.View
+            style={[styles.modalCard, { transform: [{ scale: scaleAnim }] }]}
+          >
+            <View style={styles.modalIconWrap}>
+              <Text style={styles.modalIcon}>🗑️</Text>
+            </View>
+            <Text style={styles.modalTitle}>Delete message?</Text>
+            <Text style={styles.modalSubtitle}>
+              This will permanently remove the message for everyone.
+            </Text>
+
+            <View style={styles.modalDivider} />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.cancelBtn]}
+                onPress={closeDeleteModal}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.deleteBtn]}
+                onPress={handleDelete}
+              >
+                <Text style={styles.deleteBtnText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
-
-// ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
@@ -238,8 +310,8 @@ const styles = StyleSheet.create({
   messageList: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    flexGrow: 1,           // ensures the empty state centres correctly
-    justifyContent: 'flex-end', // messages stack from the bottom up
+    flexGrow: 1,
+    justifyContent: 'flex-end',
   },
   messageBubble: {
     maxWidth: '75%',
@@ -249,15 +321,14 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   myBubble: {
-    backgroundColor: '#4A90E2',  // blue for sent messages
+    backgroundColor: '#4A90E2',
     alignSelf: 'flex-end',
-    borderBottomRightRadius: 4,  // classic "tail" visual
+    borderBottomRightRadius: 4,
   },
   theirBubble: {
-    backgroundColor: '#FFFFFF',  // white card for received messages
+    backgroundColor: '#FFFFFF',
     alignSelf: 'flex-start',
     borderBottomLeftRadius: 4,
-    // Subtle shadow for depth
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
@@ -280,6 +351,9 @@ const styles = StyleSheet.create({
     marginTop: 3,
     alignSelf: 'flex-end',
   },
+  theirTimestamp: {
+    color: 'rgba(0,0,0,0.35)',
+  },
   emptyText: {
     textAlign: 'center',
     color: '#AAAAAA',
@@ -288,7 +362,7 @@ const styles = StyleSheet.create({
   },
   inputBar: {
     flexDirection: 'row',
-    alignItems: 'flex-end',     // aligns send button to bottom for multiline input
+    alignItems: 'flex-end',
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: '#FFFFFF',
@@ -298,7 +372,7 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     minHeight: 40,
-    maxHeight: 120,             // caps how tall the input grows
+    maxHeight: 120,
     backgroundColor: '#F0F0F0',
     borderRadius: 20,
     paddingHorizontal: 16,
@@ -317,12 +391,93 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: '#B0C9EE',  // muted blue when disabled
+    backgroundColor: '#B0C9EE',
   },
   sendButtonText: {
     color: '#FFFFFF',
     fontWeight: '600',
     fontSize: 15,
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  modalWrapper: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCard: {
+    width: 300,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingTop: 24,
+    paddingBottom: 8,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  modalIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  modalIcon: {
+    fontSize: 24,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: '#777',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+  modalDivider: {
+    width: '100%',
+    height: 1,
+    backgroundColor: '#F0F0F0',
+    marginBottom: 4,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    width: '100%',
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderRadius: 12,
+    margin: 4,
+  },
+  cancelBtn: {
+    backgroundColor: '#F5F5F5',
+  },
+  cancelBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#555',
+  },
+  deleteBtn: {
+    backgroundColor: '#EF4444',
+  },
+  deleteBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
 

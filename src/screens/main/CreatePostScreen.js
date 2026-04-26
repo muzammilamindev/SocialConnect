@@ -16,6 +16,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { addPost, setCreating } from '../../store/slices/postsSlice';
 import { createPost } from '../../services/postService';
+import { uploadToCloudinary } from '../../services/cloudinaryService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from '../../components/common/Avatar';
 import { colors } from '../../theme/colors';
@@ -32,11 +33,38 @@ const CreatePostScreen = ({ navigation }) => {
   const [selectedImage, setSelectedImage] = useState(null);
 
   const handlePickImage = () => {
-    launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, response => {
-      if (!response.didCancel && response.assets?.[0]) {
-        setSelectedImage(response.assets[0]);
-      }
-    });
+    launchImageLibrary(
+      {
+        mediaType: 'photo',
+        quality: 0.8,
+        selectionLimit: 1,
+        includeBase64: true,
+      },
+      response => {
+        if (response.didCancel) return;
+
+        if (response.errorCode) {
+          Alert.alert(
+            'Image Error',
+            response.errorMessage || 'Could not open image library.',
+          );
+          return;
+        }
+
+        const asset = response.assets?.[0];
+        if (asset) {
+          const estimatedBytes = (asset.base64?.length || 0) * 0.75;
+          if (estimatedBytes > 10 * 1024 * 1024) {
+            Alert.alert(
+              'Image Too Large',
+              'Please pick an image smaller than 10 MB.',
+            );
+            return;
+          }
+          setSelectedImage(asset);
+        }
+      },
+    );
   };
 
   const handleSubmit = async () => {
@@ -46,14 +74,12 @@ const CreatePostScreen = ({ navigation }) => {
     }
 
     dispatch(setCreating(true));
-
     const safetyTimeout = setTimeout(() => {
       dispatch(setCreating(false));
-    }, 15000);
+    }, 20000);
 
     try {
       if (!selectedImage) {
-        
         const localPost = {
           id: `local_${Date.now()}`,
           userId: profile.uid,
@@ -82,7 +108,6 @@ const CreatePostScreen = ({ navigation }) => {
           null,
         ).catch(err => console.warn('Post save error:', err));
       } else {
-       
         const localPost = {
           id: `local_${Date.now()}`,
           userId: profile.uid,
@@ -102,14 +127,21 @@ const CreatePostScreen = ({ navigation }) => {
         clearTimeout(safetyTimeout);
         dispatch(setCreating(false));
         navigation.goBack();
-        
-        createPost(
-          profile.uid,
-          profile.name,
-          profile.profilePicture || '',
-          text.trim(),
-          selectedImage.uri,
-        ).catch(err => console.warn('Post upload error:', err));
+        uploadToCloudinary(
+          selectedImage.base64,
+          selectedImage.type || 'image/jpeg',
+          'posts',
+        )
+          .then(cloudinaryUrl =>
+            createPost(
+              profile.uid,
+              profile.name,
+              profile.profilePicture || '',
+              text.trim(),
+              cloudinaryUrl,
+            ),
+          )
+          .catch(err => console.warn('Post upload error:', err));
       }
     } catch (err) {
       clearTimeout(safetyTimeout);
@@ -151,28 +183,31 @@ const CreatePostScreen = ({ navigation }) => {
           multiline
           maxLength={500}
           autoFocus
+          editable={!isCreating}
         />
 
         {/* Character Count */}
         <Text style={styles.charCount}>{text.length}/500</Text>
 
-        {/* Selected Image Preview */}
+        {/* Image Preview */}
         {selectedImage && (
           <View style={styles.imagePreviewContainer}>
             <Image
               source={{ uri: selectedImage.uri }}
               style={styles.imagePreview}
+              resizeMode="cover"
             />
             <TouchableOpacity
               style={styles.removeImage}
               onPress={() => setSelectedImage(null)}
+              disabled={isCreating}
             >
               <Text style={styles.removeImageText}>✕</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Add Image Button */}
+        {/* Add / Change Image Button */}
         <TouchableOpacity
           style={styles.addImageButton}
           onPress={handlePickImage}
@@ -185,7 +220,7 @@ const CreatePostScreen = ({ navigation }) => {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Bottom Post Button — always visible */}
+      {/* Bottom action bar */}
       <View style={styles.bottomBar}>
         <TouchableOpacity
           style={styles.cancelBtn}
@@ -297,8 +332,6 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     fontSize: fonts.sizes.md,
   },
-
-  // Bottom action bar
   bottomBar: {
     flexDirection: 'row',
     alignItems: 'center',
