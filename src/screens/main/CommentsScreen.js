@@ -162,7 +162,7 @@ function DeleteMenu({ visible, onDelete, onCancel }) {
 const CommentsScreen = ({ route, navigation }) => {
   const { post } = route.params;
   const { profile } = useSelector(state => state.auth);
-  const dispatch = useDispatch();                                // ← added
+  const dispatch = useDispatch();                               
 
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState('');
@@ -205,11 +205,10 @@ const CommentsScreen = ({ route, navigation }) => {
     return () => unsubscribe();
   }, [post.id]);
 
-  // ── Sync commentsCount back to Redux so the feed card updates ──
   useEffect(() => {
-    if (isLoading) return; // don't dispatch until real data has loaded
+    if (isLoading) return; 
     dispatch(updateCommentsCount({ postId: post.id, count: comments.length }));
-  }, [comments.length, isLoading, post.id, dispatch]);           // ← added
+  }, [comments.length, isLoading, post.id, dispatch]);
 
   // Send comment
   const handleSend = useCallback(async () => {
