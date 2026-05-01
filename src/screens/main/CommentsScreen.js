@@ -12,8 +12,8 @@ import {
   Modal,
   Animated,
 } from 'react-native';
-import { useSelector, useDispatch } from 'react-redux';          // ← added useDispatch
-import { updateCommentsCount } from '../../store/slices/postsSlice'; // ← added
+import { useSelector, useDispatch } from 'react-redux';  
+import { updateCommentsCount } from '../../store/slices/postsSlice'; 
 import { addComment, deleteComment } from '../../services/postService';
 import { subscribeToComments } from '../../services/realtimeService';
 import { saveNotificationToFirestore } from '../../services/notificationService';
